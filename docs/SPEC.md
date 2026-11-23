@@ -675,3 +675,8 @@ TcDriver* makeDriver(uint8_t idx);  // ビルドフラグ -DTC_DRIVER_MAX31856 /
 - **同梱ライブラリのライセンス表記**（THIRD_PARTY_NOTICES）を付け、書き込みページから示す
 - **RoR ゲージ**: 中点が無いまま投入から90秒たったら表示する（中点のオフ・取り消し・谷のない焙煎でも出るように）
 - **排出待ち**: 欠けている範囲を bf_req で求め、その返事（bf か lost）が来るまで待つ（上限15秒は同じ）
+
+### 9.7 claude.ai 版の載せ替え（2026-11-23、ユーザー承認済み）
+- 本番の「焙煎記録ノート」アーティファクトを app/index.html（4c0e6cb）に差し替えた。宣言（db, downloads）と runtime contract 0.2.96 はそのまま引き継いだ
+- 差し替えの前と後で、db の roasts 5件・beans 3件の版と大きさが同じであることを確かめた（config は元から無し）
+- 戻すときは legacy/roastlog-artifact-v1.html を同じアーティファクトに載せ直す
