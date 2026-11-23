@@ -19,19 +19,22 @@ void Settings::loadConfig(DeviceConfig& c) {
   }
 }
 
-void Settings::saveConfig(const DeviceConfig& c) {
-  p_.putUChar("mains", c.mains);
-  p_.putUChar("avg", c.avg);
-  p_.putUInt("rev", c.rev);
+bool Settings::saveConfig(const DeviceConfig& c) {
+  bool ok = true;
+  // put* は書けた長さを返す（0 = 失敗）。値が同じなら NVS は書き換えない
+  ok &= p_.putUChar("mains", c.mains) > 0;
+  ok &= p_.putUChar("avg", c.avg) > 0;
   for (int i = 0; i < 3; i++) {
     char k[16];
     const ChannelCfg& ch = c.ch[i];
-    snprintf(k, sizeof k, "ch%d.en", i); p_.putBool(k, ch.enabled);
-    snprintf(k, sizeof k, "ch%d.role", i); p_.putString(k, kRoles[ch.role]);
-    snprintf(k, sizeof k, "ch%d.name", i); p_.putString(k, ch.name);
-    snprintf(k, sizeof k, "ch%d.color", i); p_.putString(k, ch.color);
-    snprintf(k, sizeof k, "ch%d.off", i); p_.putShort(k, ch.off10);
+    snprintf(k, sizeof k, "ch%d.en", i); ok &= p_.putBool(k, ch.enabled) > 0;
+    snprintf(k, sizeof k, "ch%d.role", i); ok &= p_.putString(k, kRoles[ch.role]) > 0;
+    snprintf(k, sizeof k, "ch%d.name", i); p_.putString(k, ch.name); ok &= p_.isKey(k);   // 空の名前は 0 が返るので、キーがあるかで見る
+    snprintf(k, sizeof k, "ch%d.color", i); ok &= p_.putString(k, ch.color) > 0;
+    snprintf(k, sizeof k, "ch%d.off", i); ok &= p_.putShort(k, ch.off10) > 0;
   }
+  ok &= p_.putUInt("rev", c.rev) > 0;   // rev は最後（途中で電源が切れても、rev があれば全部そろっているとみなせる）
+  return ok;
 }
 
 String Settings::apPass() {

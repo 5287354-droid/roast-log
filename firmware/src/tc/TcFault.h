@@ -2,6 +2,7 @@
 // 故障コードの対応付けと MAX31856 のレジスタ換算（SPEC 2.5 / 6.2）。純粋関数だけ。
 #include <stdint.h>
 #include "TcDriver.h"
+#include "../../include/config.h"
 
 namespace tcf {
 
@@ -55,6 +56,16 @@ inline uint8_t cr1Value(uint8_t avg) { return (uint8_t)((avgSel(avg) << 4) | 0x0
 // CR0 の 1SHOT(bit6) と FAULTCLR(bit1) は自動で戻るので比べない
 inline bool cr0Matches(uint8_t got, uint8_t mains) { return (got & 0xBD) == (cr0Value(mains) & 0xBD); }
 
+// MAX31856 に設定を書く順序（SPEC 9.6 B8）。50/60Hz フィルタ（CR0 bit0）は、変換を止めた状態（CMODE=0）で書き換え、
+// そのあとで連続変換（CMODE=1）に戻す。write(addr, value) を 3 回呼ぶ。
+template <class W>
+inline void applyConfigSequence(W&& write, uint8_t mains, uint8_t avg) {
+  uint8_t cr0 = cr0Value(mains);
+  write((uint8_t)0x00, (uint8_t)(cr0 & 0x7F));   // CMODE=0（変換を止める）。同時に 50/60Hz を書く
+  write((uint8_t)0x01, cr1Value(avg));            // 平均化 + K 型
+  write((uint8_t)0x00, cr0);                      // CMODE=1 に戻す
+}
+
 // 更新停止の検出。生の 24bit 値(+CJ) が連続で同じ回数を数える。
 // 平均化が大きいと更新間隔が長いので、しきい値は avg で変える（約 3 秒 / 5 秒 / 8 秒）。実機で要調整。
 class StaleDetector {
@@ -62,10 +73,12 @@ class StaleDetector {
   StaleDetector() : last_(0), same_(0), have_(false) {}
   static int threshold(uint8_t avg) { return avg >= 16 ? 32 : (avg >= 8 ? 20 : 12); }
   // 戻り値: 更新停止なら true
-  bool feed(uint32_t rawKey, uint8_t avg) {
+  bool feed(uint32_t rawKey, uint8_t avg) { return feedN(rawKey, threshold(avg)); }
+  // しきい値を回数で直接指定する（MAX31855: MAX31855_STALE_READS）
+  bool feedN(uint32_t rawKey, int thresholdReads) {
     if (have_ && rawKey == last_) { if (same_ < 1000) same_++; } else { same_ = 0; }
     last_ = rawKey; have_ = true;
-    return same_ >= threshold(avg);
+    return same_ >= thresholdReads;
   }
   void reset() { have_ = false; same_ = 0; }
  private:

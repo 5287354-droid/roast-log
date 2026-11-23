@@ -52,7 +52,8 @@ $('save').onclick=async()=>{
   try{
     const r=await fetch('/api/wifi',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
     const j=await r.json();
-    $('msg').textContent=j.ok?'保存しました。機器が再起動します。20 秒ほどしたら、家の Wi-Fi につないだスマホで http://'+(h||'roast')+'.local を開いてください。':('保存できませんでした: '+(j.err||''));
+    const E={closed:'いまは設定を受け付けていません。機器自身の Wi-Fi（RoastLog-XXXX）につないでこのページを開くか、機器のボタンを短く押してから 60 秒以内にもう一度保存してください。',bad_pass:'Wi-Fi のパスワードは 8〜63 文字です（鍵のない Wi-Fi は空にします）。',bad_ssid:'Wi-Fi の名前は 1〜32 文字です。',bad_host:'機器の名前は英小文字・数字・ハイフンだけ（32 文字まで）です。',too_large:'送る内容が大きすぎます。',bad_origin:'このページを機器から開き直してください。',need_json:'送り方が正しくありません。ページを読み込み直してください。'};
+    $('msg').textContent=j.ok?'保存しました。機器が再起動します。20 秒ほどしたら、家の Wi-Fi につないだスマホで http://'+(h||'roast')+'.local を開いてください。':('保存できませんでした。'+(E[j.err]||j.err||''));
   }catch(e){$('msg').textContent='通信できませんでした';}
 };
 </script></main></body></html>)HTML";

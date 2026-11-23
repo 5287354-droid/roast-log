@@ -26,9 +26,11 @@ void cfgDefaults(DeviceConfig& c);
 int roleIndex(const char* s);        // -1 = 不正
 int utf16Len(const char* s);         // JS の String.length 相当
 
-// setcfg（baseRev と差分）を適用する。戻り値: nullptr = 成功（rev は +1 される）、
+// setcfg（baseRev と差分）を適用する。戻り値: nullptr = 成功（中身が変わったときだけ rev が +1 される）、
 // それ以外はエラーコード（"unsupported" "stale" "bad_channel" "bad_value"）。失敗時は cfg を変えない。
 // baseRev が無ければ rev の検査はしない（古いクライアントとの互換）。
 // ampConfigurable=false（MAX31855: 電源周波数・平均化の設定が無い）のとき amp を含む setcfg は "unsupported"。
-const char* applySetcfg(DeviceConfig& cfg, JsonObjectConst m, bool ampConfigurable = true);
+// changed != nullptr なら、中身が変わったかを返す。変わらなければ rev を上げない（SPEC 9.6）。
+const char* applySetcfg(DeviceConfig& cfg, JsonObjectConst m, bool ampConfigurable = true, bool* changed = nullptr);
+bool cfgEqual(const DeviceConfig& a, const DeviceConfig& b);   // rev は比べない
 bool ampIsConfigurable(const char* ampName);

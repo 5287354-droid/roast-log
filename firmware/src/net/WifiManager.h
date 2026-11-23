@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include "../Settings.h"
+#include "StaRetry.h"
 
 class WifiManager {
  public:
@@ -19,6 +20,10 @@ class WifiManager {
   bool ledSlowBlink() const { return state_ == AP; }
   bool ledFastBlink() const { return state_ == CONNECTING; }
   bool ledSolid() const { return state_ == STA && staConnected(); }
+  bool apActive() const { return apAlso_; }          // 機器自身の Wi-Fi（AP）が出ているか（"ap" と "ap_sta"）
+  // Improv などで受け取った Wi-Fi に、ノンブロッキングでつなぐ。pollProvision: 0=待ち 1=成功 -1=失敗
+  void beginProvision(const String& ssid, const String& pass, uint32_t now);
+  int pollProvision(uint32_t now);
   void setBusyRoasting(bool b) { busy_ = b; }         // 焙煎中は AP に切り替えない（F3 で app から通知）
  private:
   enum State { CONNECTING, STA, AP } state_ = CONNECTING;
@@ -29,6 +34,8 @@ class WifiManager {
   String apSsid_, apPass_, host_;
   uint32_t t0_ = 0, lostSince_ = 0;
   bool apAlso_ = false, busy_ = false, mdns_ = false;
+  StaRetry retry_;
+  bool prov_ = false; uint32_t provAt_ = 0;
   WiFiUDP dns_;
   bool dnsOn_ = false;
 };

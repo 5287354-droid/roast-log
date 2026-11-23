@@ -39,7 +39,7 @@ jobs:
           key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
       - run: pip install platformio==6.2.0
       - run: npm ci || npm install
-      - name: native 単体テスト（Sampler / WsProtocol / 故障コード / NIST 補正 / DNS）
+      - name: native 単体テスト（Sampler / WsProtocol / 故障コード / NIST 補正 / DNS / WsHub の中身 / Improv / STA つなぎ直し）
         run: pio test -d firmware -e native
       - name: 全 env のビルド
         run: |
@@ -55,7 +55,7 @@ jobs:
             kill $P || true
             sleep 1
           done
-      - name: ブラウザ書き込みページの bin（merged bin）
+      - name: ブラウザ書き込みページの bin（bootloader / パーティション表 / boot_app0 / app / LittleFS の 5 つ。NVS には書かない）
         run: |
           bash firmware/scripts/make_flash_bins.sh
           node firmware/tools/check-flash-page.mjs --bins

@@ -3,6 +3,7 @@
 // 変換は約 100ms。250ms ごとに読むので、1 秒 4 値の中央2値平均はそのまま使える。
 // SPI は loop() の中だけで触ること。
 #include "TcDriver.h"
+#include "TcFault.h"
 
 class Max31855Driver : public TcDriver {
  public:
@@ -14,4 +15,5 @@ class Max31855Driver : public TcDriver {
  private:
   uint32_t read32();
   uint8_t cs_;
+  tcf::StaleDetector stale_;
 };

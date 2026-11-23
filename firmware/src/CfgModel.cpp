@@ -36,7 +36,17 @@ static bool isHexColor(const char* s) {
 
 bool ampIsConfigurable(const char* a) { return strcmp(a, "max31855") != 0; }
 
-const char* applySetcfg(DeviceConfig& cfg, JsonObjectConst m, bool ampConfigurable) {
+bool cfgEqual(const DeviceConfig& a, const DeviceConfig& b) {
+  if (a.mains != b.mains || a.avg != b.avg || a.rateHz != b.rateHz) return false;
+  for (int i = 0; i < 3; i++) {
+    const ChannelCfg &x = a.ch[i], &y = b.ch[i];
+    if (x.enabled != y.enabled || x.role != y.role || x.off10 != y.off10) return false;
+    if (strcmp(x.name, y.name) != 0 || strcmp(x.color, y.color) != 0) return false;
+  }
+  return true;
+}
+
+const char* applySetcfg(DeviceConfig& cfg, JsonObjectConst m, bool ampConfigurable, bool* changed) {
   DeviceConfig next = cfg;
   if (!m["amp"].isNull() && !ampConfigurable) return "unsupported";   // sim サーバと同じく最初に判定
   if (!m["baseRev"].isNull()) {
@@ -93,6 +103,9 @@ const char* applySetcfg(DeviceConfig& cfg, JsonObjectConst m, bool ampConfigurab
       next.avg = (uint8_t)v;
     }
   }
+  bool diff = !cfgEqual(cfg, next);
+  if (changed) *changed = diff;
+  if (!diff) return nullptr;   // 同じ内容なら rev を上げない
   next.rev = cfg.rev + 1;
   cfg = next;
   return nullptr;

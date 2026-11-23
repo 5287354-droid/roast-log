@@ -420,7 +420,7 @@ sim: { speed: 1, profile: 'drum', seed: 1, noise: 0.3 },
 | 信号 | XIAO ESP32C3 (`env:xiao_c3`) | ESP32-C3-DevKitM-1 (`env:esp32c3_devkit`) | ESP32 DevKitC (`env:esp32dev`) |
 |---|---|---|---|
 | SCK | D8 / GPIO8 | GPIO4 | GPIO18 |
-| MISO (SDO) | D9 / GPIO9 | GPIO5 | GPIO19 |
+| MISO (SDO) | **D7 / GPIO20**（9.6 で D9 / GPIO9 から変更） | GPIO5 | GPIO19 |
 | MOSI (SDI) | D10 / GPIO10 | GPIO6 | GPIO23 |
 | CS1 | D1 / GPIO3 | GPIO7 | GPIO5 |
 | CS2 | D2 / GPIO4 | GPIO10 | GPIO17 |
@@ -429,7 +429,7 @@ sim: { speed: 1, profile: 'drum', seed: 1, noise: 0.3 },
 | ボタン（Wi-Fi リセット） | D5 / GPIO7（外付け、内部プルアップ、GND に落とす） | GPIO9 (BOOT) | GPIO0 (BOOT) |
 | (MCP9600 用) SDA/SCL | D4/D5 は LED/ボタンと共用不可 → MCP9600 版は LED=D6/GPIO21・ボタン=D7/GPIO20 | GPIO8/GPIO9 | GPIO21/22 |
 
-- XIAO の BOOT ボタンは GPIO9（MISO）と共用です。**動作中に押すと読み取りが壊れる**ので、ボタンは外付けにします。
+- XIAO の BOOT ボタンは GPIO9（D9）です（9.6 で MISO を D7 / GPIO20 に移したので、読み取りには影響しない）。Wi-Fi 設定のボタンは外付け（D5）にします。GPIO20 は U0RXD だが、シリアルは USB CDC なので問題ない。
 - GPIO2/8/9 は C3 の起動モードを決めるピン（ストラッピング）です。CS には使いません。
 - `setup()` で **全 CS を先に OUTPUT HIGH にしてから** `SPI.begin()` します（起動時のバス衝突を防ぐため）。
 - DRDY/FAULT ピンは使いません（レジスタをポーリングで読む）。
@@ -485,7 +485,7 @@ TcDriver* makeDriver(uint8_t idx);  // ビルドフラグ -DTC_DRIVER_MAX31856 /
   - `GET /wifi`（PROGMEM の HTML）、`GET /api/scan`、`POST /api/wifi {ssid, pass, apPass?, host?}` → 保存して再起動。
   - `GET /update`（PROGMEM の HTML）、`POST /update?target=fw|fs`（multipart。フォームに機器パスワードが必須）。
   - `WS /ws`（最大 4 クライアント）。
-- パーティション: `board_build.partitions = default.csv`（app 1.25MB×2 で OTA 可、LittleFS 約 1.4MB）、`board_build.filesystem = littlefs`。
+- パーティション（9.6 で変更）: `board_build.partitions = roastlog_4mb.csv`（nvs 20KB / otadata 8KB / app 1.75MB×2（OTA 用）/ coredump 64KB / LittleFS 384KB）、`board_build.filesystem = littlefs`。
 - OTA: **可**。HTTP アップロード方式で、`Update.h` を使い、ロールバックを有効にします。起動して WS サーバが立ち上がったら `esp_ota_mark_app_valid_cancel_rollback()` を呼びます。アプリ（LittleFS）も同じ画面から更新できます。インターネット経由の自動更新はやりません（将来課題）。
 
 ### 6.6 ライブラリ（`platformio.ini` で固定する）

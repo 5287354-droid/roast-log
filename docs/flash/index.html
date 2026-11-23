@@ -66,16 +66,28 @@ a{color:var(--warn)}
 </esp-web-install-button></p>
 <ol>
   <li>「書き込む」を押すと、接続先を選ぶ窓が出ます。<b>USB JTAG/serial debug unit</b>（XIAO）や <b>CP2102 / USB Serial</b>（DevKit）を選んで「接続」。</li>
-  <li>「INSTALL（インストール）」を押します。「消去してから書き込む」にチェックを入れると、Wi-Fi の設定もまっさらになります（はじめてならチェック推奨）。</li>
+  <li>「INSTALL（インストール）」を押します。</li>
   <li>1〜2 分で終わります。終わるまでケーブルを抜かないでください。</li>
-  <li>終わったら、XIAO の <kbd>R</kbd>（RESET）ボタンを押すか、USB を挿し直してください。</li>
+  <li>終わると、そのまま次の画面（Wi-Fi の設定）が出ます。出なければ、XIAO の <kbd>R</kbd>（RESET）ボタンを押すか USB を挿し直してから、もう一度「書き込む」を押して接続してください。</li>
 </ol>
+<p class="sub">この書き込みでは、機器の中の Wi-Fi の設定や補正値は消えません（設定の領域には書き込みません）。Wi-Fi の設定だけを消したいときは、機器のボタンを 5 秒長押ししてください。</p>
 
-<h2>4. 書き込んだあと</h2>
+<h2>4. Wi-Fi を設定する（パソコンから）</h2>
+<p>書き込みが終わった画面に、機器の名前と <b>「Wi-Fi を設定」</b> のボタンが出ます。ここから家の Wi-Fi をそのまま設定できます（Improv Serial）。</p>
 <ol>
-  <li>スマホの Wi-Fi 設定に <b>RoastLog-XXXX</b> が出てきます。つなぐときのパスワードは、機器のラベルに書いてある 8 桁の数字です（ラベルが無いときは、パソコンでシリアルモニタを開くと起動時に表示されます）。</li>
+  <li><b>「Wi-Fi を設定」</b>を押し、家の Wi-Fi の名前を選んで（出ないときは名前を入力）、パスワードを入れて「接続」。</li>
+  <li>つながると、機器のアドレス（<code>http://192.168.…</code>）が出ます。<b>「Visit Device（機器を開く）」</b>を押すと、焙煎記録ノートが開きます。以後はスマホから <code>http://roast.local</code> でも開けます。</li>
+  <li>つながらなかった（パスワード違い・電波が弱い）ときは、エラーが出てもとの画面にもどります。もう一度入れ直してください。</li>
+</ol>
+<p class="sub">うまくいくと、機器は家の Wi-Fi につながります（LED が点灯）。書き込みの画面を閉じたあとでも、書き込みページを開いて「書き込む」→ 接続すれば、「Wi-Fi を設定」をいつでもやり直せます。</p>
+
+<h2>5. 機器自身の Wi-Fi（RoastLog-XXXX）を使うとき</h2>
+<p>家の Wi-Fi を設定しなくても、機器自身の Wi-Fi で使えます。</p>
+<ol>
+  <li>スマホの Wi-Fi 設定に <b>RoastLog-XXXX</b> が出てきます。つなぐときのパスワードは、機器のラベルに書いてある 8 桁の数字です。</li>
+  <li>ラベルが無いときは、この画面の <b>「ログとコンソール」</b>（書き込みの画面のボタン）を開いてください。機器が <b>10 秒ごと</b>に、Wi-Fi の名前とパスワードを次の形で表示します。
+    <br><code>{"type":"wifi","apSsid":"RoastLog-XXXX","apPass":"12345678",…}</code></li>
   <li>つないだら、Safari / Chrome で <code>http://192.168.4.1</code> を開きます。焙煎記録ノートが出れば成功です。</li>
-  <li>家の Wi-Fi につなぎたいときは <code>http://192.168.4.1/wifi</code> で設定すると、以後は <code>http://roast.local</code> で開けます。</li>
 </ol>
 
 <div class="card">
@@ -83,7 +95,9 @@ a{color:var(--warn)}
   <ul>
     <li>接続先の窓に何も出ない → ケーブルを替える／BOOT ボタンを押しながら挿し直す。</li>
     <li>「Failed to connect」 → BOOT を押したまま挿し直してから、もう一度「書き込む」。</li>
-    <li>書き込んだのにアプリが出ない → 「消去してから書き込む」にチェックを入れて、もう一度書き込む。</li>
+    <li>書き込んだのにアプリが出ない → もう一度書き込んでください（設定は残ります）。</li>
+    <li>Wi-Fi が全然見つからない（XIAO）→ 付属の<b>外付けアンテナ（U.FL）</b>を付けましたか。付けないと Wi-Fi がほとんど届きません。取り付け方は<a href="hardware.html">組み立て手順</a>にあります。</li>
+    <li>家の Wi-Fi の設定を消してやり直したい → 機器のボタンを 5 秒長押し（機器自身の Wi-Fi で起動し直します）。</li>
   </ul>
 </div>
 
@@ -91,11 +105,11 @@ a{color:var(--warn)}
   <strong>安全のために</strong>
   <ul>
     <li>温度計の本体（基板・ケーブル）は、焙煎機や火から離して置いてください。熱くなるのは熱電対の先だけです。</li>
-    <li>熱電対の線の色と＋−の見分け方は、配線の説明（<a href="../HARDWARE.md">docs/HARDWARE.md</a>）を見てください。</li>
+    <li>配線・はんだ付け・熱電対の線の色と＋−の見分け方は、<a href="hardware.html">組み立て手順（HARDWARE）</a>を見てください。</li>
   </ul>
 </div>
 
-<p class="sub">このページは ESP Web Tools（Apache-2.0）を使っています。ファームウェアとアプリは MIT ライセンスです。</p>
+<p class="sub">このページは ESP Web Tools（Apache-2.0）を使っています。ファームウェアとアプリは MIT ライセンスです。機器に入るライブラリ（ESPAsyncWebServer・AsyncTCP は LGPL-3.0、Arduino コアは LGPL-2.1 など）のライセンスは <a href="THIRD_PARTY_NOTICES.txt">THIRD_PARTY_NOTICES（同梱ライブラリのライセンス表記）</a>を見てください。</p>
 </main>
 <script>
   if (!('serial' in navigator)) document.getElementById('nosupport').style.display = 'block';

@@ -169,6 +169,38 @@ void test_max31855_decode_bits() {
   TEST_ASSERT_EQUAL_UINT8(TC_RANGE, max31855::decode(max31855::encodeForTest(1600.0, 25.0)).fault);
 }
 
+// MAX31855: 生の 32bit が MAX31855_STALE_READS 回（250ms x 80 = 20 秒）変わらなければ更新停止（SPEC 9.6）
+void test_max31855_stale_detector() {
+  StaleDetector d;
+  uint32_t w = max31855::encodeForTest(200.0, 25.0);
+  bool stale = false; int first = -1;
+  for (int i = 0; i < 200; i++) { if (d.feedN(w, MAX31855_STALE_READS) && !stale) { stale = true; first = i; } }
+  TEST_ASSERT_TRUE(stale);
+  TEST_ASSERT_EQUAL(MAX31855_STALE_READS, first);          // 最初の 1 回 + 80 回同じ値
+  // 値が 1bit でも動けば解除。動き続けるあいだは検出しない
+  TEST_ASSERT_FALSE(d.feedN(w + (1u << 18), MAX31855_STALE_READS));
+  StaleDetector e;
+  for (int i = 0; i < 1000; i++) TEST_ASSERT_FALSE(e.feedN(w + ((i / 40) & 1) * (1u << 18), MAX31855_STALE_READS));   // 10 秒ごとに 0.25℃ 動く = 正常
+  e.reset(); TEST_ASSERT_FALSE(e.feedN(w, MAX31855_STALE_READS));
+}
+
+// MAX31856: 50/60Hz を書き換えるときは CMODE=0 にしてから書き、連続変換に戻す（SPEC 9.6 B8）
+void test_max31856_config_sequence_cmode() {
+  struct W { uint8_t a, v; };
+  W log[8]; int n = 0;
+  applyConfigSequence([&](uint8_t a, uint8_t v) { if (n < 8) log[n++] = {a, v}; }, 60, 4);
+  TEST_ASSERT_EQUAL(3, n);
+  TEST_ASSERT_EQUAL(0x00, log[0].a); TEST_ASSERT_EQUAL(0, log[0].v & 0x80);        // 最初の CR0 は CMODE=0
+  TEST_ASSERT_EQUAL(0x00, log[0].v & 0x01);                                        // 60Hz
+  TEST_ASSERT_EQUAL(0x01, log[1].a); TEST_ASSERT_EQUAL(cr1Value(4), log[1].v);
+  TEST_ASSERT_EQUAL(0x00, log[2].a); TEST_ASSERT_EQUAL(0x80, log[2].v & 0x80);     // 最後の CR0 は CMODE=1（連続）
+  TEST_ASSERT_EQUAL(cr0Value(60), log[2].v);
+  n = 0; applyConfigSequence([&](uint8_t a, uint8_t v) { if (n < 8) log[n++] = {a, v}; }, 50, 16);
+  TEST_ASSERT_EQUAL(0x01, log[0].v & 0x01); TEST_ASSERT_EQUAL(0, log[0].v & 0x80);
+  TEST_ASSERT_EQUAL(cr0Value(50), log[2].v);
+  TEST_ASSERT_TRUE(cr0Matches(log[2].v, 50));
+}
+
 void setUp() {}
 void tearDown() {}
 int main() {
@@ -179,6 +211,8 @@ int main() {
   RUN_TEST(test_raw_conversion);
   RUN_TEST(test_register_values);
   RUN_TEST(test_stale_detector);
+  RUN_TEST(test_max31855_stale_detector);
+  RUN_TEST(test_max31856_config_sequence_cmode);
   RUN_TEST(test_sim_driver);
   RUN_TEST(test_dns_only_roast);
   RUN_TEST(test_nist_forward_inverse);

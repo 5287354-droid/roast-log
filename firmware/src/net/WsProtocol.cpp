@@ -118,6 +118,7 @@ std::string encSt(const StatusInfo& st) {
   o += ",\"mode\":"; appendStr(o, st.mode);
   o += ",\"ip\":"; appendStr(o, st.ip);
   o += ",\"heap\":"; appendInt(o, st.heap);
+  o += ",\"heapMax\":"; appendInt(o, st.heapMax);
   o += ",\"uptime\":"; appendInt(o, st.uptime);
   o += ",\"clients\":"; appendInt(o, st.clients);
   o += '}';
@@ -149,6 +150,11 @@ ProtocolEngine::Client* ProtocolEngine::find(uint32_t id) {
   for (auto& c : cl_) if (c.used && c.id == id) return &c;
   return nullptr;
 }
+int ProtocolEngine::clientIds(uint32_t* out, int max) const {
+  int n = 0;
+  for (auto& c : cl_) if (c.used && n < max) out[n++] = c.id;
+  return n;
+}
 int ProtocolEngine::clientCount() const { int n = 0; for (auto& c : cl_) if (c.used) n++; return n; }
 
 bool ProtocolEngine::onOpen(uint32_t id, uint32_t nowMs) {
@@ -168,7 +174,7 @@ void ProtocolEngine::sendHello(Client& c, uint32_t nowMs, Sink& sink) {
 // 1 フレーム送る。送り終えたら false
 bool ProtocolEngine::stepJob(Client& c, Job& j, Sink& sink) {
   if (!j.active) return false;
-  if (!sink.canSend(c.id)) return true;
+  if (!sink.canSendBf(c.id)) return true;   // 前の bf がまだ送信キューにあるあいだは積まない（メモリを使い切らない）
   uint32_t lim = j.dynamic ? ring_.seq() : j.to;
   RangePlan p = ring_.plan((int64_t)j.next, (int64_t)lim);
   if (p.empty) {
@@ -278,9 +284,13 @@ void ProtocolEngine::onMessage(uint32_t id, const char* data, size_t len, uint32
     const Sample* l = sq ? ring_.get(sq) : nullptr;
     sink.send(id, wsp::encPong(idp, t, l ? l->ms : nowMs));
   } else if (type == "setcfg") {
-    const char* err = applySetcfg(cfg_, m, ampIsConfigurable(di_.amp));
+    DeviceConfig before = cfg_;
+    bool changed = false;
+    const char* err = applySetcfg(cfg_, m, ampIsConfigurable(di_.amp), &changed);
     if (err) { uint32_t rev = cfg_.rev; ack(false, err, strcmp(err, "stale") == 0 ? &rev : nullptr); }
-    else { uint32_t rev = cfg_.rev; ack(true, nullptr, &rev); cfgChanged_ = true; broadcastCfg(sink); }
+    else if (!changed) { uint32_t rev = cfg_.rev; ack(true, nullptr, &rev); }   // 変更なし: rev は上げず、cfg も配らない
+    else if (store_ && !store_->save(cfg_)) { cfg_ = before; ack(false, "storage"); }   // 保存できなければ元に戻す
+    else { uint32_t rev = cfg_.rev; ack(true, nullptr, &rev); cfgChanged_ = true; broadcastCfg(sink); }   // 保存してから ack
   } else if (type == "identify") {
     identify_ = true; ack(true, nullptr);
   } else {

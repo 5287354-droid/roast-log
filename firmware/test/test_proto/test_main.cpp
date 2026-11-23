@@ -10,7 +10,9 @@ struct Out { uint32_t id; std::string text; };
 struct TestSink : Sink {
   std::vector<Out> log;
   bool can = true;
+  bool bfOk = true;   // false = 送信キューに前の bf が残っている
   bool canSend(uint32_t) override { return can; }
+  bool canSendBf(uint32_t) override { return can && bfOk; }
   void send(uint32_t id, const std::string& t) override { log.push_back({id, t}); }
   void clear() { log.clear(); }
 };
@@ -70,8 +72,8 @@ void test_enc_ack_pong_st() {
   TEST_ASSERT_EQUAL_STRING("{\"type\":\"ack\",\"id\":\"c18\",\"ok\":false,\"err\":\"stale\",\"rev\":5}", wsp::encAck(&id, false, "stale", &rev).c_str());
   id = "p5";
   TEST_ASSERT_EQUAL_STRING("{\"type\":\"pong\",\"id\":\"p5\",\"t\":1763870000123,\"ms\":913500}", wsp::encPong(&id, 1763870000123LL, 913500).c_str());
-  StatusInfo st; st.rssi = -61; st.mode = "sta"; st.ip = "192.168.1.42"; st.heap = 182344; st.uptime = 913; st.clients = 1;
-  TEST_ASSERT_EQUAL_STRING("{\"type\":\"st\",\"rssi\":-61,\"mode\":\"sta\",\"ip\":\"192.168.1.42\",\"heap\":182344,\"uptime\":913,\"clients\":1}", wsp::encSt(st).c_str());
+  StatusInfo st; st.rssi = -61; st.mode = "sta"; st.ip = "192.168.1.42"; st.heap = 182344; st.heapMax = 110592; st.uptime = 913; st.clients = 1;
+  TEST_ASSERT_EQUAL_STRING("{\"type\":\"st\",\"rssi\":-61,\"mode\":\"sta\",\"ip\":\"192.168.1.42\",\"heap\":182344,\"heapMax\":110592,\"uptime\":913,\"clients\":1}", wsp::encSt(st).c_str());
 }
 void test_json_escape_name() {
   DeviceInfo di = mkInfo(); DeviceConfig c; cfgDefaults(c);
@@ -120,23 +122,28 @@ void test_auto_backfill_order_hello_bf_s() {
   Fix f; f.feed(700);
   f.eng.onOpen(1, 0);
   f.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":\"9f31c2aa\",\"lastSeq\":100}");
-  // hello のみ。bf は pump で 1 フレームずつ
+  // hello のみ。bf は pump で 1 フレーム（BF_MAX_SAMPLES 個まで）ずつ
   TEST_ASSERT_EQUAL(1, (int)f.sink.log.size());
   f.feed(1);   // 701 は bf 送信中なので s では送られない
   for (auto& o : f.sink.log) TEST_ASSERT_NOT_EQUAL(0, strcmp(parse(o.text)["type"], "s"));
-  f.eng.pump(10, f.sink);  // bf 101..400
-  f.eng.pump(20, f.sink);  // bf 401..700
-  f.feed(1);               // 702: まだ 701.. が残っているので s は送らない
-  f.eng.pump(30, f.sink);  // 最後の bf 701..702（溜まった分を含む）
-  auto t = f.types(1);
-  TEST_ASSERT_EQUAL(4, (int)t.size());
-  TEST_ASSERT_EQUAL_STRING("hello", t[0].c_str());
-  TEST_ASSERT_EQUAL_STRING("bf", t[1].c_str()); TEST_ASSERT_EQUAL_STRING("bf", t[2].c_str()); TEST_ASSERT_EQUAL_STRING("bf", t[3].c_str());
-  JsonDocument b1 = parse(f.sink.log[1].text), b2 = parse(f.sink.log[2].text), b3 = parse(f.sink.log[3].text);
-  TEST_ASSERT_EQUAL(101, (int)b1["from"]); TEST_ASSERT_EQUAL(400, (int)b1["to"]); TEST_ASSERT_EQUAL(300, (int)b1["v"][0].size());
-  TEST_ASSERT_EQUAL(401, (int)b2["from"]); TEST_ASSERT_EQUAL(700, (int)b2["to"]);
-  TEST_ASSERT_EQUAL(701, (int)b3["from"]); TEST_ASSERT_EQUAL(702, (int)b3["to"]);
-  TEST_ASSERT_FALSE((bool)b1["lost"]);
+  uint32_t expectFrom = 101; int frames = 0;
+  for (int i = 0; i < 20 && f.sink.log.size() < 100; i++) {
+    size_t before = f.sink.log.size();
+    f.eng.pump(10 + i, f.sink);
+    if (f.sink.log.size() == before) break;
+    JsonDocument b = parse(f.sink.log.back().text);
+    TEST_ASSERT_EQUAL_STRING("bf", b["type"]);
+    TEST_ASSERT_EQUAL((int)expectFrom, (int)b["from"]);
+    TEST_ASSERT_TRUE((int)b["v"][0].size() <= BF_MAX_SAMPLES);
+    expectFrom = (uint32_t)(int)b["to"] + 1; frames++;
+    if (i == 2) f.feed(1);   // 途中で 702 が来ても s は割り込まない
+  }
+  TEST_ASSERT_EQUAL(702 + 1, (int)expectFrom);   // 101..702 をすべて bf で送った
+  TEST_ASSERT_EQUAL(6, frames);                  // 602 個 / 120 = 6 フレーム
+  JsonDocument first = parse(f.sink.log[1].text);
+  TEST_ASSERT_EQUAL(101, (int)first["from"]); TEST_ASSERT_EQUAL(220, (int)first["to"]); TEST_ASSERT_EQUAL(BF_MAX_SAMPLES, (int)first["v"][0].size());
+  TEST_ASSERT_FALSE((bool)first["lost"]);
+  for (auto& o : f.sink.log) TEST_ASSERT_NOT_EQUAL(0, strcmp(parse(o.text)["type"], "s"));
   f.sink.clear(); f.feed(1);   // bf を送り終えたので s が再開
   TEST_ASSERT_EQUAL(1, (int)f.sink.log.size());
   JsonDocument s = parse(f.sink.log[0].text);
@@ -207,15 +214,74 @@ void test_bf_req() {
   JsonDocument a = parse(f.sink.log[0].text);
   TEST_ASSERT_FALSE((bool)a["ok"]); TEST_ASSERT_EQUAL_STRING("bad_range", a["err"]);
 }
-void test_bf_req_over_300_chunks() {
+void test_bf_req_chunks_of_bf_max() {
   Fix f; f.feed(1000); f.eng.onOpen(1, 0);
   f.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":null,\"lastSeq\":null}");
   f.sink.clear();
   f.msg(1, "{\"type\":\"bf_req\",\"from\":1,\"to\":1000}");
-  for (int i = 0; i < 6; i++) f.eng.pump(i, f.sink);
-  TEST_ASSERT_EQUAL(4, (int)f.sink.log.size());
-  JsonDocument last = parse(f.sink.log[3].text);
-  TEST_ASSERT_EQUAL(901, (int)last["from"]); TEST_ASSERT_EQUAL(1000, (int)last["to"]);
+  for (int i = 0; i < 12; i++) f.eng.pump(i, f.sink);
+  TEST_ASSERT_EQUAL(9, (int)f.sink.log.size());   // 1000 / 120 = 8.33 → 9 フレーム
+  JsonDocument last = parse(f.sink.log[8].text);
+  TEST_ASSERT_EQUAL(961, (int)last["from"]); TEST_ASSERT_EQUAL(1000, (int)last["to"]);
+  TEST_ASSERT_EQUAL(BF_MAX_SAMPLES, 120);
+}
+// 送信キューに前の bf が残っているあいだは、次の bf を積まない（SPEC 9.6 B3）
+void test_bf_waits_for_empty_queue() {
+  Fix f; f.feed(500); f.eng.onOpen(1, 0);
+  f.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":\"9f31c2aa\",\"lastSeq\":0}");
+  f.sink.clear();
+  f.sink.bfOk = false;
+  for (int i = 0; i < 5; i++) f.eng.pump(i, f.sink);
+  TEST_ASSERT_EQUAL(0, (int)f.sink.log.size());           // キューが空でないので 1 つも積まない
+  f.sink.bfOk = true;
+  f.eng.pump(10, f.sink);
+  TEST_ASSERT_EQUAL(1, (int)f.sink.log.size());           // 空になったら 1 フレームだけ
+  f.sink.bfOk = false; f.eng.pump(11, f.sink);
+  TEST_ASSERT_EQUAL(1, (int)f.sink.log.size());
+}
+// 古い（または 0 の）lastSeq の hi が来ても、一度に積む量には上限がある（SPEC 9.6 B3）
+void test_old_lastseq_bounded_per_pump() {
+  Fix f; f.feed(3000); f.eng.onOpen(1, 0);
+  f.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":\"9f31c2aa\",\"lastSeq\":1}");
+  f.sink.clear();
+  size_t bytesMax = 0;
+  for (int i = 0; i < 40; i++) {
+    size_t before = f.sink.log.size();
+    f.eng.pump(i, f.sink);
+    size_t n = f.sink.log.size() - before;
+    TEST_ASSERT_TRUE_MESSAGE(n <= 1, "1 回の pump で積む bf は 1 フレームまで");
+    if (n) { size_t b = f.sink.log.back().text.size(); if (b > bytesMax) bytesMax = b; TEST_ASSERT_TRUE((int)parse(f.sink.log.back().text)["v"][0].size() <= BF_MAX_SAMPLES); }
+  }
+  TEST_ASSERT_TRUE_MESSAGE(bytesMax < 6000, "1 フレームは約 3KB（6KB 未満）");
+  // 送信キューが詰まったままなら、何回 pump しても積まない
+  Fix g; g.feed(3000); g.eng.onOpen(1, 0);
+  g.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":\"9f31c2aa\",\"lastSeq\":1}");
+  g.sink.clear(); g.sink.bfOk = false;
+  for (int i = 0; i < 100; i++) g.eng.pump(i, g.sink);
+  TEST_ASSERT_EQUAL(0, (int)g.sink.log.size());
+}
+// HELLO_DELAY で hello を出したあとに hi が来ても、hello → bf（全部）→ s の順（SPEC 9.6）
+void test_hi_after_delayed_hello_keeps_order() {
+  Fix f; f.feed(700); f.eng.onOpen(1, 0);
+  f.eng.pump(HELLO_DELAY_MS, f.sink);                       // hi が来ないので hello
+  TEST_ASSERT_EQUAL(1, (int)f.sink.log.size());
+  f.feed(2);                                                // s が 2 つ流れる
+  TEST_ASSERT_EQUAL(3, (int)f.sink.log.size());
+  f.sink.clear();
+  f.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":\"9f31c2aa\",\"lastSeq\":100}");   // 遅れて来た hi
+  f.feed(1);                                                // bf の途中で s が来ても割り込まない
+  f.eng.pump(HELLO_DELAY_MS + 10, f.sink); f.feed(1);       // bf 101..220 のあと s は割り込まない
+  f.eng.pump(HELLO_DELAY_MS + 20, f.sink); f.feed(1);
+  for (int i = 0; i < 10; i++) f.eng.pump(HELLO_DELAY_MS + 30 + i, f.sink);
+  auto t = f.types(1);
+  TEST_ASSERT_EQUAL_STRING("hello", t[0].c_str());
+  size_t lastBf = 0;
+  for (size_t i = 1; i < t.size(); i++) { TEST_ASSERT_EQUAL_STRING("bf", t[i].c_str()); lastBf = i; }
+  TEST_ASSERT_TRUE(lastBf >= 5);
+  JsonDocument lb = parse(f.sink.log[lastBf].text);
+  TEST_ASSERT_EQUAL(f.ring.seq(), (uint32_t)(int)lb["to"]);   // 追いついたところで終わる
+  f.sink.clear(); f.feed(1);
+  TEST_ASSERT_EQUAL_STRING("s", parse(f.sink.log[0].text)["type"]);   // それから s
 }
 void test_ping_pong_echo() {
   Fix f; f.feed(3); f.eng.onOpen(1, 0);
@@ -330,6 +396,48 @@ void test_st_to_ready_only() {
   TEST_ASSERT_EQUAL(2, (int)parse(f.sink.log[0].text)["clients"]);
 }
 
+struct MemStore : CfgStore {
+  int saves = 0; bool fail = false; std::vector<std::string> trace; std::vector<Out>* log = nullptr; size_t logAtSave = 0;
+  bool save(const DeviceConfig&) override { saves++; if (log) logAtSave = log->size(); return !fail; }
+};
+// 変更が無い setcfg は rev を上げず、保存も cfg の配信もしない（SPEC 9.6）
+void test_setcfg_no_change_keeps_rev() {
+  Fix f; MemStore st; f.eng.setStore(&st); f.feed(1); f.eng.onOpen(1, 0);
+  f.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":null,\"lastSeq\":null}");
+  f.sink.clear();
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"n1\",\"baseRev\":1,\"channels\":[{\"idx\":0,\"offset\":0,\"enabled\":true}]}");
+  TEST_ASSERT_EQUAL(1, (int)f.sink.log.size());            // ack だけ（cfg は配らない）
+  JsonDocument a = parse(f.sink.log[0].text);
+  TEST_ASSERT_TRUE((bool)a["ok"]); TEST_ASSERT_EQUAL(1, (int)a["rev"]);
+  TEST_ASSERT_EQUAL(1, (int)f.cfg.rev); TEST_ASSERT_EQUAL(0, st.saves);
+  TEST_ASSERT_FALSE(f.eng.takeCfgChanged());
+  f.sink.clear();
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"n2\",\"baseRev\":1,\"channels\":[{\"idx\":0,\"offset\":0.5}]}");   // 変わる → +1
+  TEST_ASSERT_EQUAL(2, (int)f.cfg.rev); TEST_ASSERT_EQUAL(1, st.saves);
+  f.sink.clear();
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"n3\",\"baseRev\":2,\"channels\":[{\"idx\":0,\"offset\":0.5}],\"amp\":{\"mains\":50}}");   // 同じ値の再送
+  TEST_ASSERT_EQUAL(2, (int)f.cfg.rev); TEST_ASSERT_EQUAL(1, st.saves);
+}
+// 保存してから ack（保存に失敗したら ack{ok:false, err:"storage"} で元に戻す）
+void test_setcfg_saves_before_ack() {
+  Fix f; MemStore st; st.log = &f.sink.log; f.eng.setStore(&st); f.eng.onOpen(1, 0);
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"s1\",\"channels\":[{\"idx\":1,\"name\":\"abc\"}]}");
+  TEST_ASSERT_EQUAL(1, st.saves);
+  TEST_ASSERT_EQUAL(0, (int)st.logAtSave);                 // 保存した時点では、まだ何も送っていない
+  TEST_ASSERT_EQUAL_STRING("ack", parse(f.sink.log[0].text)["type"]);
+  f.sink.clear(); st.fail = true;
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"s2\",\"channels\":[{\"idx\":1,\"name\":\"xyz\"}]}");
+  JsonDocument a = parse(f.sink.log[0].text);
+  TEST_ASSERT_FALSE((bool)a["ok"]); TEST_ASSERT_EQUAL_STRING("storage", a["err"]);
+  TEST_ASSERT_EQUAL_STRING("abc", f.cfg.ch[1].name); TEST_ASSERT_EQUAL(2, (int)f.cfg.rev);   // 元のまま
+  TEST_ASSERT_EQUAL(1, (int)f.sink.log.size());            // cfg は配らない
+}
+void test_st_has_heapmax() {
+  StatusInfo st; st.heap = 120000; st.heapMax = 65536; st.ip = "1.2.3.4";
+  JsonDocument d = parse(wsp::encSt(st));
+  TEST_ASSERT_EQUAL(120000, (int)d["heap"]); TEST_ASSERT_EQUAL(65536, (int)d["heapMax"]);
+}
+
 void setUp() {}
 void tearDown() {}
 int main() {
@@ -340,8 +448,9 @@ int main() {
   RUN_TEST(test_auto_backfill_order_hello_bf_s); RUN_TEST(test_other_client_not_blocked_by_bf);
   RUN_TEST(test_different_bootid_no_bf); RUN_TEST(test_lastseq_out_of_buffer_lost);
   RUN_TEST(test_slow_client_catches_up_with_bf_before_s); RUN_TEST(test_max_clients);
-  RUN_TEST(test_bf_req); RUN_TEST(test_bf_req_over_300_chunks); RUN_TEST(test_ping_pong_echo);
+  RUN_TEST(test_bf_req); RUN_TEST(test_bf_req_chunks_of_bf_max); RUN_TEST(test_bf_waits_for_empty_queue); RUN_TEST(test_old_lastseq_bounded_per_pump); RUN_TEST(test_hi_after_delayed_hello_keeps_order); RUN_TEST(test_ping_pong_echo);
   RUN_TEST(test_setcfg_partial_ack_cfg_broadcast); RUN_TEST(test_setcfg_stale_rev);
   RUN_TEST(test_setcfg_errors_leave_cfg); RUN_TEST(test_setcfg_amp_unsupported_on_max31855); RUN_TEST(test_identify_unknown_and_garbage); RUN_TEST(test_st_to_ready_only);
+  RUN_TEST(test_setcfg_no_change_keeps_rev); RUN_TEST(test_setcfg_saves_before_ack); RUN_TEST(test_st_has_heapmax);
   return UNITY_END();
 }

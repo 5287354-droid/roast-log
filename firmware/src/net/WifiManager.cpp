@@ -26,6 +26,7 @@ void WifiManager::startAp(bool alsoSta) {
   if (!alsoSta) { WiFi.disconnect(false); state_ = AP; }
   if (!dnsOn_) { dns_.begin(53); dnsOn_ = true; }
   startMdns();
+  retry_.armAt(millis());   // 保存済みの Wi-Fi があれば、あとでつなぎ直す
 }
 
 void WifiManager::startMdns() {
@@ -45,11 +46,38 @@ void WifiManager::pollDns() {
   if (m) { dns_.beginPacket(dns_.remoteIP(), dns_.remotePort()); dns_.write(out, m); dns_.endPacket(); }
 }
 
+void WifiManager::beginProvision(const String& ssid, const String& pass, uint32_t now) {
+  WiFi.mode(apAlso_ ? WIFI_AP_STA : WIFI_STA);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  prov_ = true; provAt_ = now;
+}
+
+int WifiManager::pollProvision(uint32_t now) {
+  if (!prov_) return -1;
+  if (WiFi.status() == WL_CONNECTED) { prov_ = false; state_ = STA; lostSince_ = 0; startMdns(); return 1; }
+  if ((int32_t)(now - provAt_) < (int32_t)IMPROV_CONNECT_TIMEOUT_MS) return 0;
+  prov_ = false;
+  WiFi.disconnect(false);
+  String ssid = s_->wifiSsid();                    // 失敗したら、前の設定に戻す
+  if (state_ == STA && ssid.length()) WiFi.begin(ssid.c_str(), s_->wifiPass().c_str());
+  return -1;
+}
+
 void WifiManager::loop(uint32_t now, int wsClients) {
   pollDns();
+  if (prov_) return;   // Improv の接続試行中は、状態の遷移を止める
   if (state_ == CONNECTING) {
     if (WiFi.status() == WL_CONNECTED) { state_ = STA; lostSince_ = 0; startMdns(); }
     else if (now - t0_ > STA_CONNECT_TIMEOUT_MS) startAp(false);   // 20 秒で AP へ
+  } else if (state_ == AP) {
+    // 保存済みの Wi-Fi がある AP は、1 分ごとに STA をつなぎ直す（クライアントがいないときだけ）
+    if (retry_.trying()) {
+      if (WiFi.status() == WL_CONNECTED) { retry_.finished(now); state_ = STA; lostSince_ = 0; startMdns(); }   // AP は残る（"ap_sta"）
+      else if (retry_.timedOut(now)) { WiFi.disconnect(false); retry_.finished(now); }
+    } else if (retry_.shouldStart(now, s_->wifiSsid().length() > 0, wsClients, busy_)) {
+      WiFi.begin(s_->wifiSsid().c_str(), s_->wifiPass().c_str());
+      retry_.started(now);
+    }
   } else if (state_ == STA) {
     if (WiFi.status() != WL_CONNECTED) {
       if (!lostSince_) lostSince_ = now ? now : 1;

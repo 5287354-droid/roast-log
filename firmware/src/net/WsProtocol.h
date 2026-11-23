@@ -19,6 +19,7 @@ struct StatusInfo {
   const char* mode = "sta";
   std::string ip;
   uint32_t heap = 0;
+  uint32_t heapMax = 0;   // ESP.getMaxAllocHeap()（断片化の目安。SPEC 9.6）
   uint32_t uptime = 0;
   int clients = 0;
 };
@@ -40,11 +41,24 @@ class Sink {
   virtual ~Sink() {}
   virtual bool canSend(uint32_t clientId) = 0;
   virtual void send(uint32_t clientId, const std::string& text) = 0;
+  // bf（大きい塊）を積んでよいか。実機は「その接続の送信キューが空」のとき true（SPEC 9.6）。既定は canSend と同じ
+  virtual bool canSendBf(uint32_t clientId) { return canSend(clientId); }
+};
+
+// 設定の保存先（実機は NVS）。setcfg は「保存してから ack」するために使う。保存できなければ false
+class CfgStore {
+ public:
+  virtual ~CfgStore() {}
+  virtual bool save(const DeviceConfig& c) = 0;
 };
 
 class ProtocolEngine {
  public:
   ProtocolEngine(const DeviceInfo& di, Ring& ring, DeviceConfig& cfg) : di_(di), ring_(ring), cfg_(cfg) {}
+  void setStore(CfgStore* st) { store_ = st; }
+  bool hasClient(uint32_t id) { return find(id) != nullptr; }
+  // 使用中の接続 id を out に書く（最大 max 件）。WsHub が実体の無い枠を探すのに使う
+  int clientIds(uint32_t* out, int max) const;
   bool onOpen(uint32_t id, uint32_t nowMs);  // false = 5 台目以降（呼び出し側で閉じる）
   void onClose(uint32_t id);
   void onMessage(uint32_t id, const char* data, size_t len, uint32_t nowMs, Sink& sink);
@@ -73,6 +87,7 @@ class ProtocolEngine {
   Ring& ring_;
   DeviceConfig& cfg_;
   Client cl_[MAX_WS_CLIENTS];
+  CfgStore* store_ = nullptr;
   bool identify_ = false, cfgChanged_ = false;
   uint32_t lastNowMs_ = 0;
 };

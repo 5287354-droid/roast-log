@@ -1,15 +1,57 @@
 {
   "name": "焙煎記録ノート（MAX31855 版）",
   "version": "0.1.0",
-  "new_install_prompt_erase": true,
+  "new_install_prompt_erase": false,
   "builds": [
     {
       "chipFamily": "ESP32-C3",
-      "parts": [{ "path": "firmware/xiao_c3/roastlog-xiao_c3-merged.bin", "offset": 0 }]
+      "parts": [
+        {
+          "path": "firmware/xiao_c3/bootloader.bin",
+          "offset": 0
+        },
+        {
+          "path": "firmware/xiao_c3/partitions.bin",
+          "offset": 32768
+        },
+        {
+          "path": "firmware/xiao_c3/boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "firmware/xiao_c3/firmware.bin",
+          "offset": 65536
+        },
+        {
+          "path": "firmware/xiao_c3/littlefs.bin",
+          "offset": 3801088
+        }
+      ]
     },
     {
       "chipFamily": "ESP32",
-      "parts": [{ "path": "firmware/esp32dev/roastlog-esp32dev-merged.bin", "offset": 0 }]
+      "parts": [
+        {
+          "path": "firmware/esp32dev/bootloader.bin",
+          "offset": 4096
+        },
+        {
+          "path": "firmware/esp32dev/partitions.bin",
+          "offset": 32768
+        },
+        {
+          "path": "firmware/esp32dev/boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "firmware/esp32dev/firmware.bin",
+          "offset": 65536
+        },
+        {
+          "path": "firmware/esp32dev/littlefs.bin",
+          "offset": 3801088
+        }
+      ]
     }
   ]
 }

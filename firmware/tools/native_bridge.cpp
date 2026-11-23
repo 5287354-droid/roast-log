@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
         ring.push(s);
         eng.onSample(sink);
         if (ring.seq() % ST_EVERY_SEQ == 0) {
-          StatusInfo st; st.rssi = -50; st.mode = "sta"; st.ip = "127.0.0.1"; st.heap = 150000; st.uptime = g_now / 1000;
+          StatusInfo st; st.rssi = -50; st.mode = "sta"; st.ip = "127.0.0.1"; st.heap = 150000; st.heapMax = 110592; st.uptime = g_now / 1000;
           eng.broadcastSt(st, sink);
         }
       }

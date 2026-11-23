@@ -8,7 +8,8 @@ class Settings {
  public:
   void begin();
   void loadConfig(DeviceConfig& c);
-  void saveConfig(const DeviceConfig& c);
+  bool saveConfig(const DeviceConfig& c);   // 1 つでも書けなければ false
+  bool hasConfig() { return p_.isKey("rev"); }   // 一度でも保存したことがあるか（初回起動の判定）
   String wifiSsid() { return p_.getString("wifi.ssid", ""); }
   String wifiPass() { return p_.getString("wifi.pass", ""); }
   void setWifi(const String& ssid, const String& pass) { p_.putString("wifi.ssid", ssid); p_.putString("wifi.pass", pass); }

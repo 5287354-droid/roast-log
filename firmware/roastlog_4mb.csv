@@ -1,0 +1,12 @@
+# 焙煎記録ノート 4MB フラッシュ用パーティション表（SPEC 9.6）
+# OTA は後からパーティション表を変えられないので、最初に今の配分で決める。
+# 全 env（xiao_c3 / xiao_c3_31856 / xiao_c3_sim / esp32dev / esp32c3_devkit）で共通。
+#
+# 書き込みページ（docs/flash/）は nvs の領域（0x9000〜0xDFFF）には書かない。Wi-Fi・補正値は書き込みで消えない。
+# Name,    Type, SubType, Offset,   Size,     Flags
+nvs,       data, nvs,     0x9000,   0x5000,
+otadata,   data, ota,     0xE000,   0x2000,
+app0,      app,  ota_0,   0x10000,  0x1C0000,
+app1,      app,  ota_1,   0x1D0000, 0x1C0000,
+coredump,  data, coredump,0x390000, 0x10000,
+spiffs,    data, spiffs,  0x3A0000, 0x60000,

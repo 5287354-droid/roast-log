@@ -1,0 +1,31 @@
+{
+  "env": "esp32dev",
+  "chip": "esp32",
+  "parts": [
+    {
+      "name": "bootloader",
+      "offset": 4096,
+      "file": "bootloader.bin"
+    },
+    {
+      "name": "partitions",
+      "offset": 32768,
+      "file": "partitions.bin"
+    },
+    {
+      "name": "boot_app0",
+      "offset": 57344,
+      "file": "boot_app0.bin"
+    },
+    {
+      "name": "app",
+      "offset": 65536,
+      "file": "firmware.bin"
+    },
+    {
+      "name": "littlefs",
+      "offset": 3801088,
+      "file": "littlefs.bin"
+    }
+  ]
+}
