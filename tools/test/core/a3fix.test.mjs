@@ -156,12 +156,12 @@ test('中-3: setcfg は baseRev つきの差分。ほかの端末が先に変え
   const sc = frames.slice(n0).find(f => f.type === 'setcfg');
   assert.equal(sc.baseRev, rev0, 'baseRev はフォームを開いたときの rev');
   assert.deepEqual(sc.channels, [{ idx: 0, name: 'BT-A' }], '変えた項目だけ（差分）');
-  await waitFor(async () => /最新の設定を読み直しました/.test(await page.textContent('.toast.err')), 'stale の案内');
+  await waitFor(async () => /保存しませんでした/.test(await page.textContent('.toast.err')), 'stale の案内');
   let st = (await srv.api('/api/sim/state')).cfg;
   assert.equal(st.channels[0].name, '豆温度', 'A の変更は保存されない'); assert.equal(st.channels[1].offset, -2.5, 'B の補正値は消えない');
-  assert.equal(await page.inputValue('#chName0'), '豆温度', '最新の設定を読み直した'); assert.equal(await page.inputValue('#chOff1'), '-2.5');
+  assert.equal(await page.inputValue('#chName0'), 'BT-A', '書きかけは、最新の設定の上に残る（4回目 A5）'); assert.equal(await page.inputValue('#chOff1'), '-2.5', '最新の設定を読み直した');
   // もう一度（今度は通る）
-  await page.fill('#chName0', 'BT-A'); const n1 = frames.length; await page.click('#chSave');
+  const n1 = frames.length; await page.click('#chSave');
   await waitFor(async () => (await srv.api('/api/sim/state')).cfg.channels[0].name === 'BT-A', '保存できた');
   st = (await srv.api('/api/sim/state')).cfg; assert.equal(st.channels[1].offset, -2.5); assert.equal(st.rev, rev0 + 2);
   assert.equal(frames.slice(n1).find(f => f.type === 'setcfg').baseRev, rev0 + 1);

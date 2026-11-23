@@ -470,7 +470,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
     <div class="panel" id="pCh">
       <h3>温度センサー（チャンネル）</h3>
       <p class="note devnote"><span>機器から配信されたページでのみ使えます。</span></p>
-      <div class="note" id="chConflict" hidden><span>ほかの端末で設定が変わりました。このまま保存すると、読み直しになります。</span><button class="link" data-action="ch-reload">読み直す</button></div>
+      <div class="note" id="chConflict" hidden><span>ほかの端末で設定が変わりました。書きかけの変更は最新の設定の上に載せてあります。内容を確かめてから保存してください。</span><button class="link" data-action="ch-reload">書きかけを捨てて読み直す</button></div>
       <p class="small muted" style="margin:0" id="chNote"></p>
       <div class="stack" id="chForm"></div>
       <div class="small muted" id="chPrimary"></div>
@@ -789,21 +789,23 @@ function stats(r, cfg, m) {
 const median = a => { const s = a.filter(x => x != null).sort((x, y) => x - y), n = s.length; return n ? (n % 2 ? s[(n - 1) >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2) : null; };
 
 // 外れ値除去 4.2。prev5=直近の採用値（呼び出し側が持つ配列。ここで更新する）、st={pend:[]}。採用値か null（保留・範囲外）を返す
-function despike(prev5, x, st, jump) {
+function despike(prev5, x, st, jump, tag) {
   const J = jump || 12;
   if (x == null || !Number.isFinite(x) || x < -30 || x > 600) return null; // 外気温は 0℃未満もありうる（-30℃まで有効）
   if (!prev5.length) { prev5.push(x); return x; }
   const m = median(prev5), last = prev5[prev5.length - 1];
+  const pv = st.pv || (st.pv = []), pt = st.pt || (st.pt = []);   // pt: 保留した値それぞれの目印（呼び出し側の seq）。書き戻す位置を、値の並びではなく目印で決めるため
   if (Math.abs(x - m) > J && Math.abs(x - last) > J) { // 物理的にありえない跳び（直前値からも離れているとき）
-    const dir = Math.sign(x - m), p = st.pend, pv = st.pv || (st.pv = []);
-    if (p.length && p[0] !== dir) { p.length = 0; pv.length = 0; }
-    p.push(dir); pv.push(x);
-    if (p.length >= 3) { st.confirmed = pv.slice(0, -1); p.length = 0; pv.length = 0; prev5.length = 0; prev5.push(x); return x; } // 同じ方向に 3 点続いたら本物。保留していた値は st.confirmed に返す（呼び出し側が null を埋め戻す）
+    const dir = Math.sign(x - m), p = st.pend;
+    if (p.length && p[0] !== dir) { p.length = 0; pv.length = 0; pt.length = 0; }
+    p.push(dir); pv.push(x); pt.push(tag);
+    if (p.length >= 3) { st.confirmed = pv.slice(0, -1); st.confirmedTags = pt.slice(0, -1); p.length = 0; pv.length = 0; pt.length = 0; prev5.length = 0; prev5.push(x); return x; } // 同じ方向に 3 点続いたら本物。保留していた値は st.confirmed に返す（呼び出し側が null を埋め戻す）
     return null;
   }
-  // 保留していた値が、いまの（普通の）値の近くなら、跳びは本物だった（下がりきって落ち着いた）。保留していた値を返す。遠ければ単発の外れ値なので捨てる
-  if (st.pv && st.pv.length && st.pv.every(y => Math.abs(y - x) <= J)) { st.confirmed = st.pv.slice(); prev5.length = 0; st.confirmed.forEach(y => prev5.push(y)); }
-  st.pend.length = 0; if (st.pv) st.pv.length = 0;
+  // 保留していた値が、いまの（普通の）値の近くで落ち着いたなら、跳びは本物だった（下がりきって落ち着いた）。保留していた値を返す。
+  // ただし「いまの値が、保留していた値より、跳ぶ前の値（median）に近い」なら、2 点だけの外れ値が戻ってきただけ。本物として採用しない（213,213 → 202）
+  if (pv.length && pv.every(y => Math.abs(y - x) <= J && Math.abs(y - x) < Math.abs(x - m))) { st.confirmed = pv.slice(); st.confirmedTags = pt.slice(); prev5.length = 0; st.confirmed.forEach(y => prev5.push(y)); }
+  st.pend.length = 0; pv.length = 0; pt.length = 0;
   prev5.push(x); if (prev5.length > 5) prev5.shift();
   return x;
 }
@@ -1330,7 +1332,7 @@ function Esp32WsSource(o) {
       c.lastSeq = 0;
     }
     c.bootId = m.bootId; c.speed = sp; c.lastMs = m.ms; c.lastWall = nowW; c.lastEpoch = c.off + m.ms;
-    src.info = { fw: m.fw, model: m.model, amp: m.amp, id: m.id, bootId: m.bootId, proto: m.proto, speed: sp, host };
+    src.info = { fw: m.fw, model: m.model, amp: m.amp, id: m.id, bootId: m.bootId, proto: m.proto, speed: sp, host, ota: m.ota === true };
     tries = 0; everLive = true;
     setSt('live', 'ESP32 ' + host);
     if (m.cfg) em.emit('config', toApp(m.cfg));
@@ -1442,6 +1444,7 @@ const Sources = {
 const isAuto = d => !!(d && d.source && d.source !== 'manual' && d.series);
 const FAULT_NAMES = { 1: '断線', 2: 'GND短絡', 3: 'VCC短絡', 4: '電圧異常', 5: '範囲外', 6: '基板温度異常', 7: '未検出', 8: '更新停止' };
 const chIdx = key => parseInt(String(key).slice(1), 10) - 1;
+let dropReq = [];   // 排出待ちで、この接続で機器に求めた範囲 [{from,to,done}]（seq）
 let LV = null; // 接続ごとの状態（外れ値除去・投入前プレバッファ 180 秒）
 function resetLive() { LV = { ds: [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } })), pre: [], cur: null, cj: null, lastRecv: 0, status: { state: Sources.active.state || 'idle', detail: '' }, lastF: [0, 0, 0], bf: null, liveSince: 0, lastBf: 0, curT: null }; if (S.live && S.draft && !S.draft.startedAt) S.live = null; }
 const primIdx = d => chIdx(d.primary);
@@ -1453,15 +1456,15 @@ function newLive(d) {
   if (et) { L.etKey = et.key; L.RE = RoastCore.rorCreate({ ...rorCfg(), roasterType: d.roasterType }); L.RE.armT = null; }
   return L;
 }
-function onStatus(x) { if (LV) { if (x && x.state === 'live' && LV.status.state !== 'live') LV.liveSince = Date.now(); LV.status = x; } if (S.view === 'roast') paintConn(); if (S.view === 'setup') paintMeas(); if (S.view === 'settings') lazy(paintSettingsLive); if (S.view === 'diag') lazy(paintDiag); }
+function onStatus(x) { if (!LV || !x || LV.status.state !== x.state) dropReq = []; if (LV) { if (x && x.state === 'live' && LV.status.state !== 'live') LV.liveSince = Date.now(); LV.status = x; } if (S.view === 'roast') paintConn(); if (S.view === 'setup') paintMeas(); if (S.view === 'settings') lazy(paintSettingsLive); if (S.view === 'diag') lazy(paintDiag); }
 const lz = {};
 function lazy(fn) { if (lz[fn.name]) return; lz[fn.name] = setTimeout(() => { lz[fn.name] = 0; fn(); }, 200); }
 // ds: 外れ値除去の状態。ライブ（s）と、バックフィル（bf）は別々に持つ（9.5: bf が s のあとに届いても、s の状態を汚さない）
 function mkEnt(s, ds) {
   ds = ds || LV.ds;
   const jump = ((S.draft && S.draft.roasterType) || settings().roasterType) === 'tenami' ? 25 : 12; // 手網は振りで ±15℃ 揺れるので、外れ値の閾値をゆるめる（暫定）
-  const v = [0, 1, 2].map(i => (s.f && s.f[i]) || s.v[i] == null ? null : RoastCore.despike(ds[i].prev5, s.v[i], ds[i].st, jump));
-  const back = [0, 1, 2].map(i => { const c = ds[i].st.confirmed; ds[i].st.confirmed = null; return c && c.length ? c : null; });   // 本物と確かめられた跳び: 保留していた直前の値
+  const v = [0, 1, 2].map(i => (s.f && s.f[i]) || s.v[i] == null ? null : RoastCore.despike(ds[i].prev5, s.v[i], ds[i].st, jump, s.seq));
+  const back = [0, 1, 2].map(i => { const c = ds[i].st.confirmed, tg = ds[i].st.confirmedTags; ds[i].st.confirmed = null; ds[i].st.confirmedTags = null; return c && c.length ? c.map((y, k) => ({ y, seq: tg && tg[k] })) : null; });   // 本物と確かめられた跳び: 保留していた直前の値（と、その seq）
   return { epoch: s.epoch, seq: s.seq, boot: s.boot || '', v, f: s.f || [0, 0, 0], raw: s.v, back: back.some(Boolean) ? back : null };
 }
 function onSample(s) {
@@ -1470,7 +1473,7 @@ function onSample(s) {
   // 秒が飛んだ（切断のあと・再起動）ときは、ライブの外れ値除去の状態を捨てる（古い値と比べて、新しい値を外れ値にしないため）
   // ただし、つながり直したあと先に届いた bf の続き（seq が bf の次）なら、bf の状態を引き継ぐ。切れた所の状態は dsSnap に残し、あとから届く bf に渡す
   if (LV.sq && (s.boot !== LV.sq.boot || s.seq !== LV.sq.seq + 1)) {
-    if (LV.bf && LV.bf.boot === s.boot && LV.bf.next === s.seq) LV.ds = LV.bf.ds;
+    if (LV.bf && LV.bf.boot === s.boot && LV.bf.next === s.seq) LV.ds = structuredClone(LV.bf.ds);
     else { LV.dsSnap = { boot: LV.sq.boot, seq: LV.sq.seq, ds: structuredClone(LV.ds) }; LV.ds = [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } })); }
   }
   LV.sq = { boot: s.boot, seq: s.seq };
@@ -1509,7 +1512,7 @@ function onBackfill(b) {
   b.samples.forEach(s => recordEnt(d, mkEnt(s, LV.bf.ds), true));
   if (b.to != null) LV.bf.next = b.to + 1;
   if (S.live.dirty) { const old = S.live, L = rebuildLive(d); L.beeped = old.beeped; L.hintT = old.hintT; }
-  touchDraft(); if (d.dropPending != null) checkDropWait();
+  touchDraft(); if (d.dropPending != null) { dropReq.forEach(q => { if (b.to != null && b.to >= q.to && (b.from == null || b.from <= q.to || b.to < b.from)) q.done = true; }); checkDropWait(); }
   if (S.view === 'roast') { updateGauges(); drawLive(true); }
 }
 // 焙煎の時刻: 同じ起動（bootId）の中では t = t0 + (seq - seq0)。起動が変わったら、その起動で最初に見たサンプルの時計（ms から作った epoch）で基準を決め直す（9.5）。基準は d.clk に残す
@@ -1541,7 +1544,7 @@ function recordEnt(d, ent, bf) {
   if (L.lastT != null && t <= L.lastT) {
     const idx = t - start; let filled = false;
     d.channels.forEach(c => { const x = ent.v[chIdx(c.key)], arr = d.series.data[c.key]; if (arr && arr[idx] == null && x != null) { arr[idx] = Math.round(x * 10); L.m.v[c.key][idx] = arr[idx] / 10; filled = true; }
-      const b = ent.back && ent.back[chIdx(c.key)]; if (b && arr) b.forEach((y, k) => { const j = idx - b.length + k; if (j >= 0 && arr[j] == null && y != null) { arr[j] = Math.round(y * 10); L.m.v[c.key][j] = arr[j] / 10; filled = true; } }); });
+      const b = ent.back && ent.back[chIdx(c.key)]; if (b && arr) b.forEach(o => { const y = o.y, j = idx - (ent.seq - o.seq); if (o.seq != null && j >= 0 && j < idx && arr[j] == null && y != null) { arr[j] = Math.round(y * 10); L.m.v[c.key][j] = arr[j] / 10; filled = true; } }); });
     if ((d.gaps || []).some(g => t >= g.from && t <= g.to)) { const ng = RoastCore.removeGap(d.gaps.map(g => [g.from, g.to]), t); d.gaps = ng.map(g => ({ from: g[0], to: g[1] })); L.m.gaps = ng; } // 受け取れた秒は欠測ではない
     if (filled) L.dirty = true;
     return;
@@ -1555,7 +1558,7 @@ function recordEnt(d, ent, bf) {
   });
   while (m.t.length <= idx) m.t.push(start + m.t.length);
   m.n = m.t.length;
-  if (ent.back) d.channels.forEach(c => { const b = ent.back[chIdx(c.key)], arr = d.series.data[c.key]; if (!b) return; b.forEach((x, k) => { const j = idx - b.length + k; if (j >= 0 && arr[j] == null && x != null) { arr[j] = Math.round(x * 10); m.v[c.key][j] = arr[j] / 10; L.dirty = true; } }); });   // 保留していた値を埋め戻す
+  if (ent.back) d.channels.forEach(c => { const b = ent.back[chIdx(c.key)], arr = d.series.data[c.key]; if (!b) return; b.forEach(o => { const x = o.y, j = idx - (ent.seq - o.seq); if (o.seq != null && j >= 0 && j < idx && arr[j] == null && x != null) { arr[j] = Math.round(x * 10); m.v[c.key][j] = arr[j] / 10; L.dirty = true; } }); });   // 保留していた値を埋め戻す
   if (L.lastT == null || t > L.lastT) L.lastT = t;
   if (t < 0) return;
   const x = ent.v[primIdx(d)], res = RoastCore.rorPush(L.R, t, x);
@@ -2065,7 +2068,7 @@ function renderRoast() {
   $('#gTempLabel').textContent = primary ? (primary.name || '豆温度') : '排気温度';
   $('#lockNote').hidden = !(auto && !lockDismissed && (!ls.get('roastlog.lockNote') || !('wakeLock' in navigator)));
   if (d.undone && !d.startedAt) banner('redo', '投入を取り消しました。取り消す前の記録は、まだ戻せます', { action: { label: 'やり直す', fn: redoCharge }, close: false }); else clearBanner('redo');
-  if (d.dropPending != null && !dropWaitSince) dropWaitSince = Date.now();
+  if (d.dropPending != null && !dropWaitSince) dropWaitSince = d.dropWaitStart || (d.dropWaitStart = Date.now());
   paintBanners();
   kpBuf = ''; chipCache = ''; paintLiveLegend(); renderKeypad(); renderEvents(); renderControls(); paintConn(); updateGauges(); drawLive(true);
   paintRo();
@@ -2139,13 +2142,14 @@ function updateGauges() {
   } else { $('#cdText').textContent = '投入でタイマーが動き出します'; $('#cdBar').style.width = '0'; }
 }
 // RoR ゲージの表示（自動測定）。ドラムは中点まで「—」、手網は計算の窓（60 秒など）が埋まるまで「—」。矢印ではなく「上昇中／下降中」で書く
+const RoR_SHOW_S = 90;
 function rorGauge(d, last, el) {
   const box = $('#gRorBox'), note = $('#gRorNote'); box.classList.remove('flick', 'crash'); note.classList.remove('trend');
   const W = S.live && S.live.R ? S.live.R.W : autoWin(settings(), d.roasterType);
   let wait = null;
   if (!d.startedAt) wait = '';
   else if (d.roasterType === 'tenami') { if (el < W) wait = `窓が埋まるまで あと ${Math.max(1, Math.ceil(W - el))} 秒`; }
-  else if (evTime(d, 'tp') == null) wait = '中点のあと表示';
+  else if (evTime(d, 'tp') == null && el < RoR_SHOW_S) wait = '中点のあと表示';   // 中点が無いまま投入から 90 秒たったら出す（自動の中点オフ・取り消し・谷のない焙煎でも）
   if (wait != null || !last || last.ror == null) { $('#gRor').textContent = '—'; note.textContent = wait != null ? wait : ''; if (wait) note.classList.add('trend'); return; }
   $('#gRor').textContent = last.ror.toFixed(1);
   if (last.flag) { box.classList.add(last.flag); note.textContent = last.flag === 'flick' ? '急上昇' : '急降下'; return; }
@@ -2325,20 +2329,37 @@ function charge(t0Epoch, info) {
 }
 // 排出: 時刻はタップした時点（t0）。自動測定で接続が live でない（または bf の途中）ときは、すぐには終わらせず、最大 15 秒、機器の残り（bf）を待つ（9.5）。
 // 待っている間は status は roasting のまま（再読み込みしても続きから待てる）。受け取れなかった分は gaps に入れる
-let dropWaitSince = 0;
+let dropWaitSince = 0;   // dropReq: この接続で機器に求めた範囲 [{from,to,done}]（seq）
 const DROP_WAIT_MS = 15000;
 function doDrop(t0) {
   const d = S.draft; if (!d || !d.startedAt || d.status !== 'roasting' || d.dropPending != null) return;
   const t = Math.round(t0);
   if (!isAuto(d)) return finishDrop(d, t);
-  d.dropPending = t; dropWaitSince = Date.now(); saveDraft();
+  d.dropPending = t; dropWaitSince = d.dropWaitStart = Date.now(); dropReq = []; saveDraft();   // 開始時刻は下書きに残す（再読み込みで 15 秒を数え直さない）
   if (!checkDropWait()) { paintDropWait(); updateGauges(); renderEvents(); }
+}
+// タップした時点 t までの欠けている範囲を求め、機器に bf_req で求めて、その返事（bf か lost）が来るまで待つ。つながっていなければ、つながるまで待つ（上限は DROP_WAIT_MS）
+function dropMissing(d) {
+  const L = S.live, t = d.dropPending, out = [];
+  (d.gaps || []).forEach(g => { if (g.from <= t) out.push({ from: Math.max(0, g.from), to: Math.min(g.to, t) }); });
+  return out;
 }
 function dropReady(d) {
   const L = S.live, t = d.dropPending; if (!L || L.lastT == null) return false;
-  if (L.lastT >= t && !(d.gaps || []).some(g => g.from <= t)) return true;      // t までの分は全部ある
-  if (L.lastT >= t && connState() === 'live') return Date.now() - Math.max(LV.liveSince || 0, LV.lastBf || 0) > 2500;   // つながり直した直後の bf を少し待つ。来なければ欠測のまま
-  return false;
+  if (L.lastT < t) return false;                                  // 末尾はライブ・つなぎ直しの bf で届く
+  const miss = dropMissing(d); if (!miss.length) return true;     // t までの分は全部ある
+  if (connState() !== 'live') return false;
+  const src = Sources.active, clk = d.clk && LV && LV.cur ? d.clk.find(c => c.boot === LV.cur.boot) : null;
+  if (!clk || !src.backfill) return true;                         // 求められない（シミュレーター・古い起動の分）なら、欠測のまま
+  let wait = false;
+  miss.forEach(r => {
+    const a = Math.max(r.from, clk.t0); if (a > r.to) return;     // 今の起動より前の分は、機器に残っていない
+    const from = clk.seq0 + (a - clk.t0), to = clk.seq0 + (r.to - clk.t0);
+    const q = dropReq.find(x => x.from <= from && x.to >= to);
+    if (!q) { if (src.backfill(from, to)) dropReq.push({ from, to, done: false }); wait = true; }
+    else if (!q.done) wait = true;
+  });
+  return !wait;
 }
 function paintDropWait() {
   const left = Math.max(0, Math.ceil((DROP_WAIT_MS - (Date.now() - dropWaitSince)) / 1000));
@@ -2347,12 +2368,12 @@ function paintDropWait() {
 // 待ちを終えられるなら終えて true
 function checkDropWait() {
   const d = S.draft; if (!d || d.dropPending == null) return false;
-  if (!dropWaitSince) dropWaitSince = Date.now();
+  if (!dropWaitSince) dropWaitSince = d.dropWaitStart || (d.dropWaitStart = Date.now());
   if (dropReady(d) || Date.now() - dropWaitSince >= DROP_WAIT_MS) { finishDrop(d, d.dropPending); return true; }
   paintDropWait(); return false;
 }
 function finishDrop(d, t) {
-  d.dropPending = null; dropWaitSince = 0; clearBanner('dropwait');
+  d.dropPending = null; d.dropWaitStart = null; dropWaitSince = 0; dropReq = []; clearBanner('dropwait');
   d.events = d.events.filter(e => e.type !== 'drop'); d.events.push({ type: 'drop', t });
   d.dropTime = t; d.status = 'finishing';
   if (isAuto(d)) { // 排出後はサンプルを受け取らない。series の末尾を dropTime までにそろえる
@@ -2367,7 +2388,8 @@ function finishDrop(d, t) {
   stopTick(); releaseWake(); saveDraft(); show('finish');
 }
 async function markEvent(id) {
-  const d = S.draft; if (!d.startedAt || d.dropPending != null || roGuard()) return;
+  const d = S.draft; if (d.startedAt && d.dropPending != null) { toast('排出を記録しています。機器から残りを受け取り中です'); return; }
+  if (!d.startedAt || roGuard()) return;
   if (id === 'drop') {
     const tTap = Math.round(elapsed()); // 排出の時刻は、タップした時点（確認のあとではない）
     const ok = await confirmSheet(`${fmt(tTap)} で排出して、焙煎を終了しますか？`, '排出する', true);
@@ -2653,12 +2675,26 @@ async function saveChannels() {
   }
   await pushChannels(chs, '', 'チャンネルの設定を保存しました');
 }
+// stale のあと: 最新の設定（機器から届いた cfg）でフォームを描き直し、書きかけの差分をその上に載せ直す。捨てない。もう一度「保存」で確かめてもらう
+function rebaseChannelForm(diff) {
+  chDirty = false; CfgS.staleAt = Date.now();
+  if (S.view !== 'settings') return;
+  paintChannelForm();   // 最新の設定で描く（base も最新になる）
+  (diff || []).forEach(o => { const i = o.idx;
+    if (o.enabled !== undefined) $('#chEn' + i).checked = !!o.enabled;
+    if (o.role !== undefined) $('#chRole' + i).value = o.role;
+    if (o.name !== undefined) $('#chName' + i).value = o.name;
+    if (o.color !== undefined && /^#[0-9a-fA-F]{6}$/.test(o.color)) $('#chColor' + i).value = o.color;
+    if (o.offset !== undefined) $('#chOff' + i).value = o.offset; });
+  chDirty = !!(diff && diff.length);
+  $('#chConflict').hidden = !chDirty;
+}
 async function pushChannels(chs, okEsp, okLocal, baseRev) {
   const src = Sources.active;
   if (src.id === 'esp32') {
     try { await cfgSend({ channels: chs }, baseRev !== undefined ? baseRev : CfgS.rev); chDirty = false; $('#chConflict') && ($('#chConflict').hidden = true); toast(okEsp); paintChannelForm(); }
     catch (e) {
-      if (e && e.code === 'nak' && e.err === 'stale') { chDirty = false; if (S.view === 'settings') { paintChannelForm(); $('#chConflict').hidden = true; } toast('ほかの端末で設定が変わっていたため、保存しませんでした。最新の設定を読み直しました。確かめてから、もう一度保存してください', { err: true, ms: 6000 }); }
+      if (e && e.code === 'nak' && e.err === 'stale') { rebaseChannelForm(chs); toast('ほかの端末で設定が変わっていたため、保存しませんでした。書きかけの変更は、最新の設定の上に残してあります。確かめてから、もう一度保存してください', { err: true, ms: 6000 }); }
       else toast(e && e.code === 'nak' ? `機器が受け付けませんでした（${e.err}）` : 'ESP32 につながっていないため、保存できませんでした', { err: true });
     }
     return;
@@ -2690,12 +2726,14 @@ async function cfgSend(partial, baseRev) {
   if (ampFixed()) delete msg.amp;   // MAX31855 には amp の設定がない
   if (baseRev != null) msg.baseRev = baseRev;
   CfgS.pending++;
-  try { return await src.setConfig(msg); } finally { setTimeout(() => { CfgS.pending--; }, 800); }   // cfg が ack のあとに届いても、自分の変更として扱う
+  try { const r = await src.setConfig(msg); if (r && Number.isInteger(r.rev)) CfgS.rev = r.rev; return r; }
+  catch (e) { if (e && e.code === 'nak' && Number.isInteger(e.rev)) CfgS.rev = e.rev; throw e; }
+  finally { setTimeout(() => { CfgS.pending--; }, 800); }   // cfg が ack のあとに届いても、自分の変更として扱う
 }
 // ESP32 から cfg が届いた（hello・setcfg の結果）: 機器の NVS が正本。設定を上書きして画面に反映する
 function onConfig(cfg) {
   const st = settings(), next = cfg.channels.map(c => ({ ...c })), prev = st.channels.map(c => ({ ...c })); let ch = false;
-  const self = CfgS.pending > 0, oldRev = CfgS.rev, revChanged = cfg.rev != null && oldRev != null && cfg.rev !== oldRev;
+  const self = CfgS.pending > 0 && !(CfgS.staleAt && Date.now() - CfgS.staleAt < 1500), oldRev = CfgS.rev, revChanged = cfg.rev != null && oldRev != null && cfg.rev !== oldRev;
   if (JSON.stringify(next) !== JSON.stringify(st.channels)) { st.channels = next; ch = true; }
   if (cfg.mains && cfg.mains !== st.mains) { st.mains = cfg.mains; ch = true; }
   if (cfg.avg && cfg.avg !== st.ampAvg) { st.ampAvg = cfg.avg; ch = true; }
@@ -2748,6 +2786,7 @@ function paintSettingsLive() {
   $('#pDev').hidden = !dev;
   const base = (S.settings.conn && S.settings.conn.host) ? 'http://' + S.settings.conn.host : '';
   $('#devWifi').href = base + '/wifi'; $('#devUpdate').href = base + '/update';
+  $('#devUpdate').hidden = !((S.device && S.device.ota === true) || (esp && src.info && src.info.ota === true));   // /api/info の ota が true の機器だけ「ファームウェア更新」を出す（false・未記載なら隠す）
   paintCalLive();
 }
 const splitList = s => s.split(/[,、，]/).map(x => x.trim()).filter(Boolean);
@@ -2772,7 +2811,7 @@ async function saveDevice() {
   if ((Number(sv.avg) || 4) !== b.avg) amp.avg = Number(sv.avg) || 4;
   if (!Object.keys(amp).length) { toast('変更はありません'); return; }
   try { await cfgSend({ amp }, b.rev != null ? b.rev : CfgS.rev); toast('機器に保存しました'); }
-  catch (e) { if (e && e.code === 'nak' && e.err === 'stale') { sv.mains = settings().mains; sv.avg = settings().ampAvg; segOn('#sMains', sv.mains); segOn('#sAvg', sv.avg); formBase(); toast('ほかの端末で設定が変わっていたため、保存しませんでした。最新の設定を読み直しました。確かめてから、もう一度保存してください', { err: true, ms: 6000 }); } else toast('保存できませんでした', { err: true }); }
+  catch (e) { if (e && e.code === 'nak' && e.err === 'stale') { formBase(); sv.mains = amp.mains || settings().mains; sv.avg = amp.avg || settings().ampAvg; segOn('#sMains', sv.mains); segOn('#sAvg', sv.avg); toast('ほかの端末で設定が変わっていたため、保存しませんでした。選んでいた値は残してあります（機器の今の設定は変わっています）。確かめてから、もう一度保存してください', { err: true, ms: 6000 }); } else toast('保存できませんでした', { err: true }); }
 }
 async function identifyDevice() {
   const src = Sources.active; if (src.id !== 'esp32') { toast('ESP32 につながっていません（シミュレーターに LED はありません）'); return; }
@@ -3118,7 +3157,7 @@ if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEven
 resetLive();
 S.draft = ls.get(DRAFT_KEY);
 show('home');
-window.__roastlog = { S, Sources, updateGauges, drawLive, Dg, Cal, CfgS, show, get LV() { return LV; } }; // 試験用の窓口
+window.__roastlog = { S, Sources, onSample, updateGauges, drawLive, Dg, Cal, CfgS, show, get LV() { return LV; } }; // 試験用の窓口
 (async () => {
   await Store.init();
   const data = await Store.loadAll();

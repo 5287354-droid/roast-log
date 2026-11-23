@@ -229,7 +229,7 @@ export function startServer(opts = {}) {
         res.end(buf);
       });
     } else if (url.pathname === '/api/info') {
-      json(res, 200, { proto: 1, fw: FW, model: 'RL-SIM', amp: o.amp, id: deviceId, bootId, mode: 'sta', ip: '127.0.0.1', host: req.headers.host || 'localhost', sim: true });
+      json(res, 200, { proto: 1, fw: FW, model: 'RL-SIM', amp: o.amp, id: deviceId, bootId, mode: 'sta', ip: '127.0.0.1', host: req.headers.host || 'localhost', sim: true, ota: false });
     } else if (url.pathname === '/api/sim/truth') {
       // 9.4: 時刻は seq と同じ数え方（最初のサンプルが 1）。モデル秒そのものは modelTruth
       const mt = model.truth(), base = kBase == null ? model.k : kBase, sq = x => (x == null ? null : x - base + 1);
