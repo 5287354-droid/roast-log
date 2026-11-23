@@ -94,6 +94,7 @@
         "mode": { "enum": ["sta", "ap", "ap_sta"] },
         "ip": { "type": "string" },
         "heap": { "type": "integer", "minimum": 0 },
+        "heapMax": { "type": "integer", "minimum": 0, "description": "最大の連続した空きブロック（断片化の目安。ESP.getMaxAllocHeap()。SPEC 9.6）。古い機器では無い" },
         "uptime": { "type": "integer", "minimum": 0 },
         "clients": { "type": "integer", "minimum": 0 }
       }
@@ -116,7 +117,7 @@
         "type": { "const": "ack" },
         "id": { "type": "string" },
         "ok": { "type": "boolean" },
-        "err": { "type": "string" },
+        "err": { "enum": ["stale", "unsupported", "bad_channel", "bad_value", "bad_range", "busy", "storage", "unknown_type"], "description": "stale=baseRev が古い（rev を付ける） / unsupported=MAX31855 で amp を変えようとした / bad_channel / bad_value / bad_range=bf_req の範囲が不正 / busy=bf_req の待ち行列が満杯 / storage=NVS に保存できず設定を元に戻した（ファームのみ） / unknown_type" },
         "rev": { "type": "integer", "minimum": 0 }
       }
     },

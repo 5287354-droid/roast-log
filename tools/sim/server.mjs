@@ -143,13 +143,13 @@ export function startServer(opts = {}) {
     return out;
   }
   function stMsg() {
-    return { type: 'st', rssi: -55, mode: 'sta', ip: '127.0.0.1', heap: 182344, uptime: virtualSec, clients: clients.size };
+    return { type: 'st', rssi: -55, mode: 'sta', ip: '127.0.0.1', heap: 182344, heapMax: 110592, uptime: virtualSec, clients: clients.size };
   }
 
-  let staleRev = null;
+  let staleRev = null, unchanged = false;
   function applyCfg(m) {
     // 部分更新可。不正なら ok:false（何も変更しない）。baseRev が今の rev と違えば 'stale'（9.5）
-    staleRev = null;
+    staleRev = null; unchanged = false;
     if (m.amp !== undefined && o.amp === 'max31855') return 'unsupported';   // MAX31855 には電源周波数・平均化の設定がない
     if (m.baseRev !== undefined && m.baseRev !== rev) { staleRev = rev; return 'stale'; }
     const next = structuredClone(cfg);
@@ -171,6 +171,7 @@ export function startServer(opts = {}) {
       if (a.mains !== undefined) { if (a.mains !== 50 && a.mains !== 60) return 'bad_value'; next.amp.mains = a.mains; }
       if (a.avg !== undefined) { if (![1, 2, 4, 8, 16].includes(a.avg)) return 'bad_value'; next.amp.avg = a.avg; }
     }
+    if (JSON.stringify(next) === JSON.stringify(cfg)) { unchanged = true; return null; }   // 変更なし: rev は上げず、cfg も配らない（ファームと同じ）
     cfg = next; rev++;
     return null;
   }
@@ -202,7 +203,7 @@ export function startServer(opts = {}) {
         lastCfgMsg = m;
         const err = applyCfg(m);
         ack(!err, err, err === 'stale' ? { rev: staleRev } : { rev });
-        if (!err) broadcast(cfgMsg());
+        if (!err && !unchanged) broadcast(cfgMsg());
         break;
       }
       case 'identify': identifiedAt = Date.now(); identifyCount++; log('identify'); ack(true); break;

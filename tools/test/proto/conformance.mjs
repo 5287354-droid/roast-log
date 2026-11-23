@@ -202,6 +202,40 @@ const mustValid = m => { const e = validateWs(m); assert(e.length === 0, `schema
     await A.waitFor(x => x.type === 'ack' && x.id === 'r3' && x.ok, 2000, k0, 'ack');
   });
 
+  await test('setcfg: 変更が無いなら ack{ok:true, rev=今の値} で、rev を上げず cfg も配らない（9.6）', async () => {
+    const R = await new Conn(URL_WS).open(); R.send({ type: 'hi', app: 'roastlog', ver: 'conformance-nochg', bootId: null, lastSeq: null });
+    const h = (await R.waitFor(x => x.type === 'hello', 3000, 0, 'hello')).m; R.close();
+    const r0 = h.cfg.rev, ch0 = h.cfg.channels[0];
+    let k0 = A.log.length;
+    A.send({ type: 'setcfg', id: 'n1', baseRev: r0, channels: [{ idx: 0, name: ch0.name, offset: ch0.offset }] });
+    const a = (await A.waitFor(x => x.type === 'ack' && x.id === 'n1', 2000, k0, 'ack')).m; mustValid(a);
+    assert(a.ok === true && a.rev === r0, `変更なしは ok:true で rev が今の値(${r0}): ${JSON.stringify(a)}`);
+    // cfg が配られないことを、後続の s が届くまで（条件で）待って確かめる
+    const sq = A.log.filter(x => x.type === 's').slice(-1)[0]?.seq ?? 0;
+    await A.waitFor(x => x.type === 's' && x.seq > sq + 1, sec(4) + 2000, k0, 's');
+    assert(!A.log.slice(k0).some(x => x.type === 'cfg'), '変更なしなのに cfg が配られた');
+    k0 = A.log.length;
+    A.send({ type: 'setcfg', id: 'n2', channels: [] });
+    const a2 = (await A.waitFor(x => x.type === 'ack' && x.id === 'n2', 2000, k0, 'ack')).m;
+    assert(a2.ok === true && a2.rev === r0, `空の差分も rev は変わらない: ${JSON.stringify(a2)}`);
+    const R2 = await new Conn(URL_WS).open(); R2.send({ type: 'hi', app: 'roastlog', ver: 'conformance-nochg2', bootId: null, lastSeq: null });
+    const h2 = (await R2.waitFor(x => x.type === 'hello', 3000, 0, 'hello')).m; R2.close();
+    assert(h2.cfg.rev === r0, `hello の rev が変わった ${h2.cfg.rev} != ${r0}`);
+  });
+
+  await test('/api/info: ota が false（OTA は無い, 9.6）', async () => {
+    const j = await fetch(HTTP + '/api/info').then(r => r.json());
+    assert(j.ota === false, `ota=${JSON.stringify(j.ota)}`);
+  });
+
+  await test('st: heapMax があれば数値（heap 以下）', async () => {
+    const { m } = await A.waitFor(x => x.type === 'st', sec(12) + 2000, 0, 'st');
+    mustValid(m);
+    if (m.heapMax !== undefined) assert(Number.isInteger(m.heapMax) && m.heapMax >= 0 && m.heapMax <= m.heap, `heapMax=${m.heapMax} heap=${m.heap}`);
+  });
+
+  skip('setcfg: 保存できないときは ack{ok:false, err:"storage"} で設定を戻す', 'ファームだけで起きる（sim は保存しない。実機・ブリッジも保存を失敗させられない。firmware の native 試験で見る）');
+
   if (hello0.amp === 'max31855') await test('MAX31855: setcfg の amp は ack{ok:false, err:"unsupported"}', async () => {
     const k0 = A.log.length;
     A.send({ type: 'setcfg', id: 'u1', amp: { mains: 60 } });

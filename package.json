@@ -9,7 +9,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test \"tools/test/core/*.test.mjs\"",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node tools/test/run.mjs unit",
+    "test:e2e": "node tools/test/run.mjs e2e",
     "test:core": "node --test \"tools/test/core/*.test.mjs\"",
     "test:proto": "node tools/test/proto/conformance.mjs --url ws://localhost:8787/ws",
     "check-sync": "node tools/check-sync.mjs",
