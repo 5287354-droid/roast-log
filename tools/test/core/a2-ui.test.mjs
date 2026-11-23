@@ -38,7 +38,7 @@ async function setSettings(page, { type, speed, chargeAfter }) {
   await page.locator('[data-action="go"][data-to="settings"]:visible').first().click();
   await page.click(`#sType [data-v="${type}"]`); await page.click('#sConn [data-v="sim"]'); await page.click(`#sSimSpeed [data-v="${speed}"]`);
   await page.fill('#sSimCharge', String(chargeAfter));
-  await page.locator('#pConn [data-action="save-settings"]').click();
+  await page.locator('[data-action="save-settings"]').click();
   await page.locator('[data-action="go"][data-to="home"]:visible').first().click();
 }
 
@@ -62,8 +62,8 @@ async function fullRoast(type) {
   await page.screenshot({ path: path.join(shots, `preview-${type}.png`) });
   // 自動投入
   await until(page, () => !!window.__roastlog.S.draft.startedAt, '自動投入');
-  assert.ok(await page.isVisible('.toast'), '検知のトースト');
-  assert.match(await page.textContent('.toast'), /投入を検知しました/);
+  assert.ok(await page.isVisible('#flowBanner .fb'), '検知のバナー（ゲージの直上）');
+  assert.match(await page.textContent('#flowBanner'), /投入を検知しました/);
   const truth = await page.evaluate(() => window.__roastlog.Sources.active.truth());
   const sim0 = await st(page);
   assert.equal(sim0.status, 'roasting');

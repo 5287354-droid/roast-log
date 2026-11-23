@@ -131,6 +131,7 @@ canvas.chart { width: 100%; height: 200px; display: block; }
 .seg { display: grid; gap: 4px; grid-auto-flow: column; grid-auto-columns: 1fr; }
 .seg button { background: var(--key); border-radius: 8px; min-height: 46px; font-weight: 700; padding: 4px 2px; }
 .seg button.on { background: var(--accent); color: var(--accent-ink); }
+#sConn { grid-auto-columns: auto; } #sConn button { white-space: nowrap; padding: 4px 8px; }
 .knob { width: auto; min-height: 34px; padding: 4px 8px; font-size: 13px; }
 
 /* detail */
@@ -166,6 +167,21 @@ table.edit .tcol { width: 5em; font-family: var(--font-num); font-size: 16px; }
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .sheet { background: var(--surface); border-radius: 16px; padding: 18px; width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 14px; }
 .sheet p { margin: 0; font-size: 17px; font-weight: 600; }
+table.wires { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.wires th, table.wires td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.note.devnote { display: none; }
+.devonly > .note.devnote { display: flex; }
+.devonly > *:not(.devnote):not(h3):not(.spread) { display: none !important; }
+.fbs { display: flex; flex-direction: column; gap: 6px; }
+.fbs:empty { display: none; }
+.fb { background: var(--flash); border-radius: 6px; padding: 6px 6px 6px 12px; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.fb.err { background: var(--danger); color: #fff; }
+.fb .fbb { display: flex; gap: 2px; flex: none; }
+.fb button { background: none; color: inherit; border: 0; text-decoration: underline; font-weight: 700; min-height: 44px; min-width: 44px; padding: 6px 10px; font-size: 14px; }
+.fb button.x { text-decoration: none; font-size: 20px; }
+.ror-note.trend { color: var(--muted); font-weight: 600; }
+.toast:not(.act) { pointer-events: none; }
 .toast.top { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; }
 .toast.top button { min-height: 44px; min-width: 44px; padding: 8px 12px; }
 .toast.err { background: var(--danger); color: #fff; font-weight: 700; }
@@ -178,8 +194,8 @@ table.edit .tcol { width: 5em; font-family: var(--font-num); font-size: 16px; }
 .chip .num { font-size: 20px; font-weight: 600; }
 .chip.fault { border-color: var(--danger); } .chip.fault .num { color: var(--danger); font-size: 16px; font-weight: 700; }
 .stage { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-.stage .band { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--key); }
-.stage .band i { display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 11px; font-weight: 700; color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; }
+.stage .band { display: flex; min-height: 30px; border-radius: 6px; overflow: hidden; background: var(--key); }
+.stage .band i { display: flex; align-items: center; justify-content: center; text-align: center; font-style: normal; font-size: 11px; line-height: 1.15; font-weight: 700; color: #fff; min-width: 3.6em; padding: 2px 3px; overflow-wrap: anywhere; }   /* 狭い段階でも文字が切れないよう、折り返す */
 .stage .s1 { background: #B7791F; } .stage .s2 { background: #8C4A1A; } .stage .s3 { background: #5B2A10; }
 .stage .row2 { display: flex; justify-content: space-between; gap: 8px; }
 .note button { white-space: nowrap; }
@@ -291,6 +307,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
     </div>
     <div class="note" id="lockNote" hidden><span>画面の自動ロックをオフにしてください（iPhone: 設定 &gt; 画面表示と明るさ &gt; 自動ロック）。画面が消えると測定が途切れます。</span><button class="link" data-action="dismiss-lock">わかった</button></div>
     <div class="conn-row" id="connRow" hidden></div>
+    <div class="fbs" id="flowBanner" aria-live="polite"></div>
     <div class="gauges" id="gauges">
       <div class="gauge time"><span class="label">経過</span><span class="v" id="gTime">0:00</span></div>
       <div class="gauge temp"><span class="label" id="gTempLabel">排気温度</span><span class="v" id="gTemp">—</span></div>
@@ -391,15 +408,24 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
   <section data-view="diag" class="stack" hidden>
     <div class="spread"><h1>センサー診断</h1><button class="link" data-action="go" data-to="home">戻る</button></div>
     <p class="small muted" style="margin:0">組み立てた直後に、配線のまちがいを見つけるための画面です。</p>
+    <p class="note devnote" id="dgDevNote"><span>機器から配信されたページでのみ使えます。</span></p>
     <div class="conn-row" id="dgConn"></div>
     <div class="panel"><h3>やり方</h3>
       <ol class="steps">
-        <li>プローブを室温のままにして、3つのカードの温度が<b>基板温度の近く</b>（±5℃くらい）か見る</li>
-        <li>調べたいプローブの先を、<b>指でつまむ</b>（10秒ほど）</li>
-        <li>つまんだチャンネルのカードが<b>光って</b>、温度が上がれば、配線は正しい</li>
+        <li>プローブを室温のままにして、3つのカードの温度が<b>室温の近く</b>か見る（基板温度より少し低くても普通です）</li>
+        <li>調べたいプローブの先を、<b>指でつまむ</b>（<span id="dgPinchSec">15</span>秒ほど）。太いプローブで温度が上がりにくいときは、<b>40℃くらいのお湯に入れる</b>（<span id="dgWaterSec">25</span>秒ほど。ぬるめのお風呂くらい）</li>
+        <li>つまんだ（入れた）チャンネルのカードが<b>光って</b>、温度が上がれば、配線は正しい</li>
         <li>ちがうカードが光る・下がる・何も起きないときは、下の「確認の結果」の指示を見る</li>
       </ol>
-      <div class="small muted">どれが CH1 かわからないときは、プローブを1本ずつつまんでみてください。つまんだ分だけ光ります。</div>
+      <div class="small muted">どれが CH1 かわからないときは、プローブを1本ずつ確かめてください。反応した分だけ光ります。「使わない」設定のチャンネルは値が出ないので、挿しているときは「使う」にしてください。</div>
+    </div>
+    <div class="panel" id="dgColors"><h3>線の色（K型）</h3>
+      <table class="wires"><thead><tr><th>規格</th><th>＋側</th><th>−側</th></tr></thead><tbody>
+        <tr><td>ANSI（米国）</td><td><i class="sw" style="background:#E8C100"></i>黄</td><td><i class="sw" style="background:#C0392B"></i>赤</td></tr>
+        <tr><td>JIS（日本）</td><td><i class="sw" style="background:#C0392B"></i>赤</td><td><i class="sw" style="background:#fff;border:1px solid #888"></i>白</td></tr>
+        <tr><td>IEC（欧州）</td><td><i class="sw" style="background:#2E9E4F"></i>緑</td><td><i class="sw" style="background:#fff;border:1px solid #888"></i>白</td></tr>
+      </tbody></table>
+      <div class="small muted">規格によって色がちがいます（赤が＋のものも−のものもあります）。見分けがつかないときは、<b>K型は − 側（アルメル）の線が磁石に付きます</b>（＋側のクロメルは付きません）。</div>
     </div>
     <div class="stack" id="dgCards"></div>
     <div class="panel" id="dgCj"></div>
@@ -413,6 +439,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
   <!-- SETTINGS -->
   <section data-view="settings" class="stack" hidden>
     <div class="spread"><h1>設定・バックアップ</h1><button class="link" data-action="go" data-to="home">戻る</button></div>
+    <p class="small muted" style="margin:0">この画面の「接続」から「手入力」までの設定は、いちばん下の近くの「設定を保存」でまとめて保存します。</p>
     <div class="panel" id="pConn">
       <h3>接続</h3>
       <div class="field"><span class="label">接続方式</span>
@@ -438,10 +465,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
         </div>
         <button class="btn ghost" data-action="sim-fault" id="sFaultBtn">故障を起こす</button>
       </div>
-      <button class="btn primary" data-action="save-settings">設定を保存</button>
     </div>
     <div class="panel" id="pCh">
       <h3>温度センサー（チャンネル）</h3>
+      <p class="note devnote"><span>機器から配信されたページでのみ使えます。</span></p>
+      <div class="note" id="chConflict" hidden><span>ほかの端末で設定が変わりました。このまま保存すると、読み直しになります。</span><button class="link" data-action="ch-reload">読み直す</button></div>
       <p class="small muted" style="margin:0" id="chNote"></p>
       <div class="stack" id="chForm"></div>
       <div class="small muted" id="chPrimary"></div>
@@ -449,6 +477,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
     </div>
     <div class="panel" id="pCal">
       <h3>校正</h3>
+      <p class="note devnote"><span>機器から配信されたページでのみ使えます。</span></p>
       <p class="small muted" style="margin:0">プローブの先を氷水・沸騰水・基準温度計と同じところに入れ、温度が安定してから「測定」を押します。10秒の平均が基準と合うように補正値を決めます。</p>
       <div class="field"><label class="label" for="calCh">チャンネル</label><select id="calCh"></select></div>
       <div class="field"><span class="label">基準</span>
@@ -465,9 +494,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
         <div class="seg" id="sType"><button type="button" data-v="drum">ドラム</button><button type="button" data-v="tenami">手網</button></div></div>
       <label class="chk"><input type="checkbox" id="sAutoCharge"> 投入を自動で検知する</label>
       <label class="chk"><input type="checkbox" id="sAutoTP"> 中点を自動で検出する</label>
-      <label class="chk"><input type="checkbox" id="sDropHint"> 排出の案内を出す（1ハゼのあと、温度が10秒で20℃以上下がったとき）</label>
+      <label class="chk"><input type="checkbox" id="sDropHint"> 排出の案内を出す（1ハゼのあと、温度が10秒で20℃以上下がったとき。ドラムは初期オン・手網は初期オフ。手網では画面の上のバナーで出ます）</label>
       <div class="field"><label class="label" for="sDryTemp">乾燥の終わりの推定温度（℃）。黄色化ボタンを押さないとき、この温度に着いた時刻で段階の帯を出します</label><input id="sDryTemp" inputmode="decimal" placeholder="150"></div>
-      <button class="btn primary" data-action="save-settings">設定を保存</button>
     </div>
     <div class="panel" id="pRorAuto">
       <h3>RoR（自動測定）</h3>
@@ -477,7 +505,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
         <div class="seg" id="sSmooth"><button type="button" data-v="0">0秒</button><button type="button" data-v="5">5秒</button><button type="button" data-v="10">10秒</button></div></div>
       <label class="chk"><input type="checkbox" id="sShowEt"> ET の RoR も表示する</label>
       <label class="chk"><input type="checkbox" id="sFlagBeep"> 急上昇・急降下のとき音を鳴らす</label>
-      <button class="btn primary" data-action="save-settings">設定を保存</button>
     </div>
     <div class="panel">
       <h3>焙煎機の段階</h3>
@@ -498,7 +525,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
       <div class="field"><span class="label">お知らせ間隔の初期値</span>
         <div class="seg" id="sInterval"><button type="button" data-v="30">30秒</button><button type="button" data-v="60">1分</button></div>
       </div>
-      <button class="btn primary" data-action="save-settings">設定を保存</button>
+    </div>
+    <div class="panel" id="pSave">
+      <h3>この端末の設定を保存</h3>
+      <p class="small muted" style="margin:0">上の「接続」「自動検知」「RoR（自動測定）」「焙煎機の段階」「RoR（手入力）と注意表示」をまとめて保存します。チャンネル・校正は、それぞれのパネルのボタン、機器（ESP32）の設定は「機器の設定を保存」で、機器に保存します。</p>
+      <button class="btn primary" data-action="save-settings" id="sSaveAll">設定を保存（上の5つの項目をまとめて）</button>
     </div>
     <div class="panel" id="pDev" hidden>
       <h3>機器（ESP32）</h3>
@@ -892,6 +923,12 @@ function detectCharge(buf, mode) {
 // 水の沸点（℃）。標高 m で 0.0033℃/m 下がる（SPEC 5.7-3）
 const boilPoint = alt => Math.round((100 - 0.0033 * (Number.isFinite(+alt) ? +alt : 0)) * 100) / 100;
 // 校正の測定値（生の値 = v - offset）の平均と標準偏差（n-1）。null は除く
+// 校正の外れ値除去: 中央値から max(0.3℃, 3×1.4826×MAD) より離れた値を除く（ときどき混ざる 1 個のはずれ値で、安定した測定をやり直しにしないため）
+function calClean(vals) {
+  const a = (vals || []).filter(x => x != null && Number.isFinite(x)); if (a.length < 3) return a;
+  const m = median(a), mad = median(a.map(x => Math.abs(x - m))), lim = Math.max(0.3, 3 * 1.4826 * mad);
+  return a.filter(x => Math.abs(x - m) <= lim);
+}
 function calStats(vals) {
   const a = (vals || []).filter(x => x != null && Number.isFinite(x)), n = a.length;
   if (!n) return { n: 0, mean: null, sd: null };
@@ -912,7 +949,7 @@ function removeGap(gaps, t) {
   return out;
 }
 
-G.RoastCore = { boilPoint, calStats, trend, removeGap, ptAt, r1, median, withRor, rorInterp: withRor, evTime, stats, normalizeRecord, toV1Points, decimate, validate, valueAt,
+G.RoastCore = { boilPoint, calStats, calClean, trend, removeGap, ptAt, r1, median, withRor, rorInterp: withRor, evTime, stats, normalizeRecord, toV1Points, decimate, validate, valueAt,
   despike, rorLsq, rorCreate, rorPush, rorArm, rorSeries, tpCreate, tpPush, detectCharge };
 })(typeof window !== 'undefined' ? window : globalThis);
 // @core-end
@@ -950,7 +987,7 @@ const DEFAULTS = {
     { key: 'c3', enabled: false, role: 'amb', name: '外気温', color: '#6B7280', offset: 0 }],
   roasterType: 'drum',
   rorWindowAuto: null, rorSmooth: 5, showEtRor: false,   // rorWindowAuto が空なら、ドラム 30 秒・手網 60 秒
-  autoCharge: true, autoTP: true, autoDropHint: true, flagBeep: true,
+  autoCharge: true, autoTP: true, autoDropHint: null, flagBeep: true,   // autoDropHint が null なら、ドラムはオン・手網はオフ（手網は振りで温度が大きく揺れるため）
   mains: 50, ampAvg: 4,
   dryEstTemp: 150, altitude: 0,   // 黄色化ボタンが押されていないとき、BT がこの温度に着いたら乾燥の終わりと推定する
   sim: { speed: 1, profile: 'drum', seed: 1, noise: 0.3, chargeAfter: 40 },
@@ -1246,7 +1283,7 @@ function SimSource(o) {
       const ctrl = pend || {}; pend = null;
       if (armAt != null && model.k >= armAt) { ctrl.charge = true; armAt = null; }
       const s = model.step(ctrl);
-      em.emit('sample', { seq: s.k + 1, epoch: base + s.k * 1000, v: s.v, f: s.f, cj: s.cj, backfill: false });
+      em.emit('sample', { seq: s.k + 1, boot: 'sim', epoch: base + s.k * 1000, v: s.v, f: s.f, cj: s.cj, backfill: false });
     }
   }
   const src = {
@@ -1278,7 +1315,7 @@ function Esp32WsSource(o) {
   const pend = new Map();
   const setSt = (state, detail) => { src.state = state; em.emit('status', { state, detail: detail || '' }); };
   const send = obj => { if (ws && ws.readyState === 1) { ws.send(JSON.stringify(obj)); return true; } return false; };
-  const toApp = cfg => ({ channels: (cfg.channels || []).map(x => ({ key: 'c' + (x.idx + 1), enabled: !!x.enabled, role: x.role, name: x.name || '', color: x.color, offset: x.offset || 0 })), mains: cfg.amp && cfg.amp.mains, avg: cfg.amp && cfg.amp.avg, rateHz: cfg.rateHz });
+  const toApp = cfg => ({ channels: (cfg.channels || []).map(x => ({ key: 'c' + (x.idx + 1), enabled: !!x.enabled, role: x.role, name: x.name || '', color: x.color, offset: x.offset || 0 })), mains: cfg.amp && cfg.amp.mains, avg: cfg.amp && cfg.amp.avg, rateHz: cfg.rateHz, rev: Number.isInteger(cfg.rev) ? cfg.rev : null });
   function onHello(m) {
     const nowW = Date.now(), sp = m.speed > 0 ? m.speed : 1, rebooted = c.bootId != null && c.bootId !== m.bootId;
     if (c.off == null || c.bootId !== m.bootId) {
@@ -1303,19 +1340,19 @@ function Esp32WsSource(o) {
         if (c.off == null) { c.off = Date.now() - m.ms; c.bootId = c.bootId || ''; }
         if (m.seq <= c.lastSeq) break;     // 同じ秒をもう受け取っている（バックフィルとの重なり）
         const epoch = c.off + m.ms; c.lastMs = m.ms; c.lastSeq = m.seq; c.lastWall = Date.now(); c.lastEpoch = epoch;
-        em.emit('sample', { seq: m.seq, epoch, v: (m.v || []).map(x => x == null ? null : x / 10), f: m.f || [0, 0, 0], cj: m.cj == null ? null : m.cj / 10, backfill: false });
+        em.emit('sample', { seq: m.seq, boot: c.bootId, epoch, v: (m.v || []).map(x => x == null ? null : x / 10), f: m.f || [0, 0, 0], cj: m.cj == null ? null : m.cj / 10, backfill: false });
         break;
       }
       case 'bf': {
         const n = m.v && m.v[0] ? m.v[0].length : 0, list = [];
-        for (let i = 0; i < n; i++) list.push({ seq: m.from + i, epoch: c.off + m.ms0 + i * (m.dt || 1000), v: [0, 1, 2].map(k => { const x = m.v[k] && m.v[k][i]; return x == null ? null : x / 10; }), f: [0, 1, 2].map(k => (m.f && m.f[k] && m.f[k][i]) || 0), cj: null, backfill: true });
+        for (let i = 0; i < n; i++) list.push({ seq: m.from + i, boot: c.bootId, epoch: c.off + m.ms0 + i * (m.dt || 1000), v: [0, 1, 2].map(k => { const x = m.v[k] && m.v[k][i]; return x == null ? null : x / 10; }), f: [0, 1, 2].map(k => (m.f && m.f[k] && m.f[k][i]) || 0), cj: null, backfill: true });
         c.lastSeq = Math.max(c.lastSeq, m.to);
         em.emit('backfill', { samples: list, lost: !!m.lost, from: m.from, to: m.to });
         break;
       }
       case 'st': src.dev = { rssi: m.rssi, mode: m.mode, ip: m.ip, heap: m.heap, uptime: m.uptime, clients: m.clients }; em.emit('device', src.dev); break;
       case 'cfg': em.emit('config', toApp(m)); break;
-      case 'ack': { const p = pend.get(m.id); if (p) { pend.delete(m.id); clearTimeout(p.t); if (m.ok) p.res(m); else p.rej({ code: 'nak', err: m.err }); } break; }
+      case 'ack': { const p = pend.get(m.id); if (p) { pend.delete(m.id); clearTimeout(p.t); if (m.ok) p.res(m); else p.rej({ code: 'nak', err: m.err, rev: m.rev }); } break; }
       case 'pong': src.rtt = Date.now() - m.t; em.emit('device', src.dev || {}); break;
     }
   }
@@ -1332,7 +1369,7 @@ function Esp32WsSource(o) {
   }
   function open() {
     if (stopped) return; clearTimeout(timer);
-    if (location.protocol === 'https:') { setSt('down', 'https のページからは ESP32 に接続できません'); return; }
+    if (location.protocol !== 'http:') { setSt('down', 'このページ（' + location.protocol.replace(':', '') + '）からは ESP32 に接続できません'); return; }
     if (!everLive && !tries) setSt('connecting', 'ESP32 に接続中…');
     let w; try { w = new WebSocket('ws://' + host + '/ws'); } catch { ws = null; retry(); return; }
     ws = w; lastMsg = Date.now();
@@ -1376,7 +1413,7 @@ const Sources = {
   active: ManualSource(), sig: '',
   // 自動: ESP32 から配信されている（/api/info が通った）なら esp32。https（claude.ai）では ESP32 に接続できないので手入力
   resolve(type) {
-    const https = location.protocol === 'https:';
+    const https = location.protocol !== 'http:';   // https（claude.ai）・file:// では ESP32 に接続できない
     if (type === 'sim') return 'sim';
     if (type === 'esp32') return https ? 'manual' : 'esp32';
     if (type === 'manual') return 'manual';
@@ -1400,26 +1437,32 @@ const isAuto = d => !!(d && d.source && d.source !== 'manual' && d.series);
 const FAULT_NAMES = { 1: '断線', 2: 'GND短絡', 3: 'VCC短絡', 4: '電圧異常', 5: '範囲外', 6: '基板温度異常', 7: '未検出', 8: '更新停止' };
 const chIdx = key => parseInt(String(key).slice(1), 10) - 1;
 let LV = null; // 接続ごとの状態（外れ値除去・投入前プレバッファ 180 秒）
-function resetLive() { LV = { ds: [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } })), pre: [], cur: null, cj: null, lastRecv: 0, status: { state: Sources.active.state || 'idle', detail: '' }, lastF: [0, 0, 0] }; if (S.live && S.draft && !S.draft.startedAt) S.live = null; }
+function resetLive() { LV = { ds: [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } })), pre: [], cur: null, cj: null, lastRecv: 0, status: { state: Sources.active.state || 'idle', detail: '' }, lastF: [0, 0, 0], bf: null, liveSince: 0, lastBf: 0, curT: null }; if (S.live && S.draft && !S.draft.startedAt) S.live = null; }
 const primIdx = d => chIdx(d.primary);
 function newLive(d) {
   const L = { R: RoastCore.rorCreate({ ...rorCfg(), roasterType: d.roasterType }), T: RoastCore.tpCreate(), pts: [], lastT: null, beeped: false, last: null, dryEst: null, dryLow: false, hintT: null, dirty: false, ptsE: [], RE: null, etKey: null,
     m: { channels: d.channels, primary: d.primary, t: [], v: Object.fromEntries(d.channels.map(c => [c.key, []])), sparse: false, gaps: [], start: -30, dt: 1, scale: 10, dropTime: null, n: 0 } };
+  if (d.noAutoTp) L.T.none = true;   // 取り消した自動の中点は、再読み込み・バックフィルのあとも戻さない
   const et = settings().showEtRor ? d.channels.find(c => c.role === 'et' && c.key !== d.primary) : null; // 設定「ET の RoR も表示」: ET の RoR は急変判定なしで計算する
   if (et) { L.etKey = et.key; L.RE = RoastCore.rorCreate({ ...rorCfg(), roasterType: d.roasterType }); L.RE.armT = null; }
   return L;
 }
-function onStatus(x) { if (LV) LV.status = x; if (S.view === 'roast') paintConn(); if (S.view === 'setup') paintMeas(); if (S.view === 'settings') lazy(paintSettingsLive); if (S.view === 'diag') lazy(paintDiag); }
+function onStatus(x) { if (LV) { if (x && x.state === 'live' && LV.status.state !== 'live') LV.liveSince = Date.now(); LV.status = x; } if (S.view === 'roast') paintConn(); if (S.view === 'setup') paintMeas(); if (S.view === 'settings') lazy(paintSettingsLive); if (S.view === 'diag') lazy(paintDiag); }
 const lz = {};
 function lazy(fn) { if (lz[fn.name]) return; lz[fn.name] = setTimeout(() => { lz[fn.name] = 0; fn(); }, 200); }
-function mkEnt(s) {
+// ds: 外れ値除去の状態。ライブ（s）と、バックフィル（bf）は別々に持つ（9.5: bf が s のあとに届いても、s の状態を汚さない）
+function mkEnt(s, ds) {
+  ds = ds || LV.ds;
   const jump = ((S.draft && S.draft.roasterType) || settings().roasterType) === 'tenami' ? 25 : 12; // 手網は振りで ±15℃ 揺れるので、外れ値の閾値をゆるめる（暫定）
-  const v = [0, 1, 2].map(i => (s.f && s.f[i]) || s.v[i] == null ? null : RoastCore.despike(LV.ds[i].prev5, s.v[i], LV.ds[i].st, jump));
-  return { epoch: s.epoch, v, f: s.f || [0, 0, 0], raw: s.v };
+  const v = [0, 1, 2].map(i => (s.f && s.f[i]) || s.v[i] == null ? null : RoastCore.despike(ds[i].prev5, s.v[i], ds[i].st, jump));
+  return { epoch: s.epoch, seq: s.seq, boot: s.boot || '', v, f: s.f || [0, 0, 0], raw: s.v };
 }
 function onSample(s) {
   if (!LV || !s) return;
   if (s.backfill) return onBackfill({ samples: [s] });
+  // 秒が飛んだ（切断のあと・再起動）ときは、ライブの外れ値除去の状態を捨てる（古い値と比べて、新しい値を外れ値にしないため）
+  if (LV.sq && (s.boot !== LV.sq.boot || s.seq !== LV.sq.seq + 1)) LV.ds = [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } }));
+  LV.sq = { boot: s.boot, seq: s.seq };
   const ent = mkEnt(s);
   LV.pre.push(ent); if (LV.pre.length > 180) LV.pre.shift();
   LV.cur = ent; LV.cj = s.cj; LV.lastRecv = Date.now();
@@ -1441,12 +1484,24 @@ function onSample(s) {
 function onBackfill(b) {
   if (!LV || !b) return;
   if (b.lost) toast('機器のバッファより前の分は取り戻せませんでした（グラフに欠測として残ります）', { err: true, ms: 5000 });
+  LV.lastBf = Date.now();
   const d = S.draft;
   if (!(d && isAuto(d) && d.status === 'roasting' && d.startedAt && S.live)) return;
+  // 外れ値除去の状態は、バックフィル専用（s の状態と混ぜない）。続きの bf（from が前の to+1）なら引き継ぐ
+  if (!LV.bf || b.from == null || LV.bf.next !== b.from) LV.bf = { ds: [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } })), next: null };
   S.live.dirty = false;
-  b.samples.forEach(s => recordEnt(d, mkEnt(s), true));
+  b.samples.forEach(s => recordEnt(d, mkEnt(s, LV.bf.ds), true));
+  if (b.to != null) LV.bf.next = b.to + 1;
   if (S.live.dirty) { const old = S.live, L = rebuildLive(d); L.beeped = old.beeped; L.hintT = old.hintT; }
-  touchDraft(); if (S.view === 'roast') { updateGauges(); drawLive(true); }
+  touchDraft(); if (d.dropPending != null) checkDropWait();
+  if (S.view === 'roast') { updateGauges(); drawLive(true); }
+}
+// 焙煎の時刻: 同じ起動（bootId）の中では t = t0 + (seq - seq0)。起動が変わったら、その起動で最初に見たサンプルの時計（ms から作った epoch）で基準を決め直す（9.5）。基準は d.clk に残す
+function tOf(d, ent) {
+  const clk = d.clk || (d.clk = []);
+  let k = clk.find(c => c.boot === ent.boot);
+  if (!k) { k = { boot: ent.boot, seq0: ent.seq, t0: Math.round((ent.epoch - d.startedAt) / 1000) }; clk.push(k); }
+  return k.t0 + ent.seq - k.seq0;
 }
 function onReboot() { if (S.draft && isAuto(S.draft) && S.draft.status === 'roasting') toast('機器が再起動しました。止まっていた間は欠測として残ります', { err: true, ms: 5000 }); }
 function tryAutoCharge(d) {
@@ -1463,7 +1518,8 @@ function afterPoint(L, t, x, xe) {
 // 1 サンプルを series・RoR・中点・急変に反映する。t が最後の秒以前なら、欠けていた秒を埋めるだけ（バックフィル）
 function recordEnt(d, ent, bf) {
   const L = S.live; if (!L) return;
-  const t = Math.round((ent.epoch - d.startedAt) / 1000), start = d.series.start;
+  const t = tOf(d, ent), start = d.series.start;
+  if (!bf) LV.curT = t;
   if (t < start) return;
   if (L.lastT != null && t - L.lastT > 600 && d.source !== 'esp32') return; // 時計が大きく飛んだ（シミュレーターの再起動など）。機器の再起動は欠測として残す
   if (L.lastT != null && t <= L.lastT) {
@@ -1498,15 +1554,18 @@ function recordEnt(d, ent, bf) {
     }
   }
   // 排出の案内（SPEC 4.7）: 1ハゼのあと、主チャンネルが 10 秒で 20℃以上下がったら「排出しましたか？」
-  if (!bf && x != null && t >= 10 && settings().autoDropHint !== false && evTime(d, 'fc1') != null && evTime(d, 'drop') == null && (L.hintT == null || t - L.hintT > 60)) {
+  if (!bf && x != null && t >= 10 && dropHintOn(d) && d.dropPending == null && evTime(d, 'fc1') != null && evTime(d, 'drop') == null && (L.hintT == null || t - L.hintT > 60)) {
     const x10 = L.R.v[t - 10]; if (x10 != null && x10 - x >= 20) { L.hintT = t; dropHint(d, t, x10 - x); }
   }
 }
+const dropHintOn = d => { const v = settings().autoDropHint; return v == null ? d.roasterType !== 'tenami' : !!v; };
 async function dropHint(d, t, fall) {
   if (S.view !== 'roast' || document.getElementById('dropHintSheet')) return;
   let tp = t - 10, mx = -Infinity; for (let j = t - 10; j <= t; j++) { const y = S.live.R.v[j]; if (y != null && y >= mx) { mx = y; tp = j; } } // 下がり始める直前の最高点
   const pc = d.channels.find(c => c.key === d.primary);
-  const ok = await confirmSheet(`${pc ? chShort(pc) : '温度'} が 10 秒で ${Math.round(fall)}℃ 下がりました。排出しましたか？（${fmt(tp)} の時点を排出として記録します）`, '排出として記録', false, 'まだ', 'dropHintSheet');
+  const msg = `${pc ? chShort(pc) : '温度'} が 10 秒で ${Math.round(fall)}℃ 下がりました。排出しましたか？（${fmt(tp)} の時点を排出として記録します）`;
+  if (d.roasterType === 'tenami') { banner('drophint', msg, { action: { label: '排出として記録', fn: () => { if (S.draft === d && d.status === 'roasting') doDrop(tp); } }, ms: 20000 }); return; }   // 手網はシートで手を止めさせず、バナーで出す
+  const ok = await confirmSheet(msg, '排出として記録', false, 'まだ', 'dropHintSheet');
   if (ok && S.draft === d && d.status === 'roasting') doDrop(tp);
 }
 // 保存済みの series からライブ状態を作り直す（再読み込み・再開・バックフィル用）
@@ -1517,6 +1576,7 @@ function rebuildLive(d) {
   d.channels.forEach(c => { const a = d.series.data[c.key] || []; for (let i = 0; i < n; i++) m.v[c.key].push(a[i] == null ? null : a[i] / 10); });
   m.n = n; m.gaps = (d.gaps || []).map(g => [g.from, g.to]);
   const tpE = (d.events || []).find(e => e.type === 'tp'); if (tpE) { L.R.armT = tpE.t; L.T.done = { t: tpE.t }; }
+  const noTp = !!d.noAutoTp;
   const pa = m.v[d.primary] || [];
   for (let i = 0; i < n; i++) {
     const t = start + i; if (t < 0) continue;
@@ -1524,7 +1584,7 @@ function rebuildLive(d) {
     if (x != null) L.pts.push({ t, temp: r1(x), ror: res.ror == null ? null : r1(res.ror), flag: res.flag || null });
     L.last = { t, temp: x, ror: res.ror, prev: t > 0 ? L.R.ror[t - 1] : null, flag: res.flag };
     afterPoint(L, t, x, L.etKey && m.v[L.etKey] ? m.v[L.etKey][i] : null);
-    if (!tpE && settings().autoTP && !L.T.done && !L.T.none) {
+    if (!tpE && !noTp && settings().autoTP && !L.T.done && !L.T.none) {
       const tp = RoastCore.tpPush(L.T, L.R, t);
       if (tp) { d.events = d.events.filter(e => e.type !== 'tp'); d.events.push({ type: 'tp', t: tp.t, auto: true }); RoastCore.rorArm(L.R, tp.t); }
     }
@@ -1553,9 +1613,24 @@ function show(view) {
   if (view === 'diag') renderDiag();
 }
 
+// 画面の流れの中のバナー（ゲージの直上）。操作つきのお知らせ・待機中の案内・警告に使う。id が同じなら置き換える
+const Banners = new Map();
+function banner(id, msg, o) {
+  o = o || {};
+  Banners.set(id, { msg, err: !!o.err, action: o.action || null, close: o.close !== false, until: o.ms ? Date.now() + o.ms : 0 });
+  paintBanners(); if (o.ms) setTimeout(paintBanners, o.ms + 60);
+}
+function clearBanner(id) { if (Banners.delete(id)) paintBanners(); }
+function paintBanners() {
+  const el = document.getElementById('flowBanner'); if (!el) return;
+  const now = Date.now(); [...Banners].forEach(([k, b]) => { if (b.until && b.until < now) Banners.delete(k); });
+  const html = [...Banners].map(([k, b]) => `<div class="fb${b.err ? ' err' : ''}" data-fb="${esc(k)}" role="${b.err ? 'alert' : 'status'}"><span>${esc(b.msg)}</span><span class="fbb">${b.action ? `<button type="button" data-toast-action="1" data-fb-act="${esc(k)}">${esc(b.action.label)}</button>` : ''}${b.close ? `<button type="button" class="x" data-fb-x="${esc(k)}" aria-label="閉じる">×</button>` : ''}</span></div>`).join('');
+  if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; }
+}
 function toast(msg, o) {
   o = o || {};
-  const t = document.createElement('div'); t.className = 'toast' + (o.err ? ' err' : '') + (o.action ? ' top' : ''); t.textContent = msg;
+  if (o.action && S.view === 'roast') { banner('act:' + msg.slice(0, 12), msg, { action: o.action, ms: o.ms || 9000, err: o.err }); return; }
+  const t = document.createElement('div'); t.className = 'toast top' + (o.err ? ' err' : '') + (o.action ? ' act' : ''); t.textContent = msg;
   if (o.err) t.setAttribute('role', 'alert');
   if (o.action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = o.action.label; b.dataset.toastAction = '1'; b.addEventListener('click', () => { t.remove(); o.action.fn(); }); t.appendChild(b); }
   document.body.appendChild(t);
@@ -1775,7 +1850,8 @@ function renderHome() {
     let info;
     if (isAuto(d)) { const n = d.series.data[d.primary] ? d.series.data[d.primary].length : 0; info = d.status === 'ready' ? `投入前・${d.channels.length}ch` : `経過 ${fmt(d.startedAt ? Math.max(0, d.series.start + n - 1) : 0)}・${d.channels.length}ch`; }
     else info = `温度 ${(d.points || []).length} 件`;
-    rb.innerHTML = `<div class="banner"><div><b>${d.status === 'finishing' ? '保存前の焙煎があります' : '焙煎中の記録があります'}</b><div class="small">${esc(d.beanName || '豆の名前なし')}・${info}</div></div><div class="row"><button class="btn primary" data-action="resume">続ける</button><button class="btn ghost" data-action="discard-draft">破棄する</button></div></div>`;
+    const busy = d.tab !== TAB && !!leaseOther();   // 別のタブが書き手
+    rb.innerHTML = `<div class="banner"><div><b>${d.status === 'finishing' ? '保存前の焙煎があります' : '焙煎中の記録があります'}</b><div class="small">${esc(d.beanName || '豆の名前なし')}・${info}</div>${busy ? '<div class="small" id="busyNote"><b>別のタブで焙煎を続けています。</b>そのタブで操作してください。</div>' : ''}</div><div class="row"><button class="btn primary" data-action="resume">続ける</button><button class="btn ghost" data-action="discard-draft">破棄する</button></div></div>`;
   } else rb.innerHTML = '';
   // お知らせ: 容量（4MB 超）、IP アドレスでのアクセス（記録がアドレスごとに別になる）
   const notes = [];
@@ -1836,7 +1912,7 @@ function paintMeas() {
   const st = LV.status, cur = LV.cur, chs = roleChs();
   $('#suConn').textContent = (Sources.active.id === 'sim' ? 'シミュレーター ×' + Sources.active.speed : '') + '・' + (st.state === 'live' ? (cur ? '受信中' : '最初の値を待っています…') : st.state === 'down' ? '接続できません' : st.detail || '');
   $('#suChans').innerHTML = chs.map(c => { const i = chIdx(c.key), f = cur ? cur.f[i] : 0, v = cur ? cur.v[i] : null;
-    return `<span class="chip${f ? ' fault' : ''}"><b style="background:${esc(c.color)}"></b>${esc(c.name)} <span class="num">${f ? esc(FAULT_NAMES[f] || '故障') : v == null ? '—' : r1(v) + '℃'}</span></span>`; }).join('');
+    return `<span class="chip${f ? ' fault' : ''}"><b style="background:${esc(c.color)}"></b>${esc(c.name)} <span class="num">${f ? esc(FAULT_NAMES[f] || '故障') : v == null ? '—' : v.toFixed(1) + '℃'}</span></span>`; }).join('');
   const amb = chs.find(c => c.role === 'amb'), room = $('#suRoom');
   if (amb && cur && cur.v[chIdx(amb.key)] != null && !room.dataset.dirty) room.value = r1(cur.v[chIdx(amb.key)]); // 室温は外気温チャンネルから自動で入れる（直せる）
 }
@@ -1871,8 +1947,9 @@ async function startSetup() {
     greenWeight: num($('#suGreen').value), degree: $('#suDegree').value,
     roomTemp: num($('#suRoom').value), weather: $('#suWeather').value || null,
     interval: setupInterval, initial, current: { ...initial, knob: null }, roasterType: rt,
-    startedAt: null, dropTime: null, points: [], events: [], changes: [], undo: [], memo: '',
+    startedAt: null, dropTime: null, points: [], events: [], changes: [], undo: [], memo: '', tab: TAB,
   };
+  S.ro = false; ls.set(LEASE_KEY, { tab: TAB, ts: Date.now() }); startLease();
   if (sid !== 'manual') {
     const chs = roleChs().map(c => ({ key: c.key, role: c.role, name: c.name, color: c.color, offset: sid === 'sim' ? 0 : (c.offset || 0) }));
     const primary = RoastCore.normalizeRecord({ schema: 2, channels: chs, series: { dt: 1, start: -30, scale: 10, data: Object.fromEntries(chs.map(c => [c.key, []])) } }).primary;
@@ -1887,18 +1964,78 @@ async function startSetup() {
 
 /* ---------- ROASTING ---------- */
 let kpBuf = '', tick = null, nextDue = 0, wakeLock = null, audioCtx = null, lastChartDraw = 0, lockDismissed = false, chipCache = '';
-const elapsed = () => S.draft && S.draft.startedAt ? (Sources.active.now() - S.draft.startedAt) / 1000 : 0;
+// 焙煎の経過秒。自動測定は「最後に受け取ったサンプルの t（seq で数えた秒）+ 受け取ってからの実時間（×speed）」。排出をタップしたあと待っている間は、タップした時点で止める
+function elapsed() {
+  const d = S.draft; if (!d || !d.startedAt) return 0;
+  if (d.dropPending != null) return d.dropPending;
+  const src = Sources.active;
+  if (isAuto(d) && LV && LV.curT != null && LV.lastRecv) { const sp = (src.id === 'sim' ? src.speed : src.info && src.info.speed) || 1; return LV.curT + (Date.now() - LV.lastRecv) / 1000 * sp; }
+  return (src.now() - d.startedAt) / 1000;
+}
+// 焙煎中の下書きを書いていいのは1つのタブだけ（d.tab = 書き手のタブ id）。書き手は 2 秒ごとに「貸し出し」(roastlog.lease) を更新する。
+// 別のタブが下書きを書いたと storage イベントで知ったら、このタブは読み取り専用になる（S.ro）。「続ける」は、貸し出しが生きていないときだけ受け付ける
+const TAB = uid('t'), LEASE_KEY = 'roastlog.lease', LEASE_MS = 7000;
+let leaseTimer = null;
+const leaseOther = () => { const l = ls.get(LEASE_KEY); return l && l.tab !== TAB && Date.now() - l.ts < LEASE_MS ? l : null; };
+const roGuard = () => { if (S.ro) { toast('別のタブが焙煎を続けています。このタブでは操作できません', { err: true }); return true; } return false; };
+function claimDraft() {
+  const d = S.draft; if (!d) return false;
+  if (leaseOther()) return false;
+  ls.set(LEASE_KEY, { tab: TAB, ts: Date.now() }); d.tab = TAB; S.ro = false;
+  saveDraft(); startLease(); return true;
+}
+function startLease() { clearInterval(leaseTimer); leaseTimer = setInterval(leaseBeat, 2000); }
+function leaseBeat() {
+  const d = S.draft;
+  if (!d || S.ro || d.tab !== TAB) { if (!d) clearInterval(leaseTimer); return; }
+  if (leaseOther()) { demote(); return; }
+  ls.set(LEASE_KEY, { tab: TAB, ts: Date.now() });
+}
+function demote() {
+  if (S.ro) return; S.ro = true; clearInterval(leaseTimer);
+  stopTick(); releaseWake(); if (Sources.active.id !== 'manual') Sources.stop();
+  S.live = null; paintRo(); if (S.view === 'roast') { renderRoast(); } else if (S.view === 'finish') show('home');
+}
+// 読み取り専用の表示（バナー + ボタンを無効に）
+function paintRo() {
+  document.body.classList.toggle('ro', !!S.ro);
+  if (S.ro && S.view === 'roast') banner('ro', '別のタブが焙煎を続けています。このタブは読み取り専用です（記録は書き換えません）', { err: true, close: false, action: { label: 'ホームへ', fn: () => show('home') } }); else clearBanner('ro');
+  if (S.view === 'roast') document.querySelectorAll('[data-view="roast"] button.btn, [data-view="roast"] .key, [data-view="roast"] .ev, [data-view="roast"] .seg button, [data-view="roast"] select').forEach(b => { b.disabled = !!S.ro || (b.dataset.ev && S.draft && !S.draft.startedAt); });
+}
 function saveDraft() {
   draftDirty = false; draftSavedAt = Date.now();
-  if (S.draft) { if (!ls.set(DRAFT_KEY, S.draft)) quotaToast(); } else ls.del(DRAFT_KEY);
+  if (S.ro) return;   // 読み取り専用のタブは下書きを書かない
+  if (S.draft && S.draft.tab && S.draft.tab !== TAB) return;   // 自分が書き手でない下書き（まだ「続ける」前）は書かない
+  if (S.draft) { if (!ls.set(DRAFT_KEY, S.draft)) quotaToast(); }
+  else { ls.del(DRAFT_KEY); const l = ls.get(LEASE_KEY); if (l && l.tab === TAB) ls.del(LEASE_KEY); clearInterval(leaseTimer); }
 }
+const dropLease = () => { const l = ls.get(LEASE_KEY); if (l && l.tab === TAB) ls.del(LEASE_KEY); };
+window.addEventListener('pagehide', dropLease);   // 再読み込み・閉じるとき、貸し出しを返す（すぐ「続ける」を押せるように）
+window.addEventListener('pageshow', e => { if (e.persisted && S.draft && S.draft.tab === TAB && !S.ro) { ls.set(LEASE_KEY, { tab: TAB, ts: Date.now() }); startLease(); } });
+window.addEventListener('storage', e => {
+  if (e.key === DRAFT_KEY) {
+    const nd = e.newValue ? (() => { try { return JSON.parse(e.newValue); } catch { return null; } })() : null;
+    if (!nd) { // 別のタブが焙煎を終えた（保存・中止・破棄）
+      if (S.draft && S.draft.tab !== TAB) { S.draft = null; S.live = null; S.ro = false; if (S.view === 'roast' || S.view === 'finish' || S.view === 'setup') { show('home'); toast('別のタブで焙煎が終わりました'); } else if (S.view === 'home') renderHome(); }
+      else if (S.draft && S.draft.tab === TAB && !S.ro) demote();   // 自分の下書きが消された（別のタブが破棄した）。もう書かない
+      return;
+    }
+    if (nd.tab && nd.tab !== TAB && (!S.draft || S.draft.id === nd.id || S.draft.tab === TAB)) {
+      const mine = S.draft && S.draft.tab === TAB && !S.ro;
+      S.draft = nd; if (mine) { S.ro = true; clearInterval(leaseTimer); stopTick(); releaseWake(); Sources.stop(); }
+      if (S.ro && S.view === 'roast') { if (nd.startedAt && isAuto(nd)) rebuildLive(nd); paintRo(); renderRoast(); }   // 書き手の最新の記録を、読み取り専用で見せる
+      else if (S.view === 'home') renderHome();
+    }
+  } else if (e.key === LEASE_KEY) { if (S.draft && S.draft.tab === TAB && !S.ro && leaseOther()) demote(); else if (!e.newValue && S.view === 'home') renderHome(); }
+  else if (e.key === CACHE_KEY && Store.mode !== 'cloud') { const c = ls.get(CACHE_KEY); if (c) { S.roasts = c.roasts || []; S.beans = c.beans || []; if (S.view === 'home') renderHome(); } }   // 別のタブで保存された記録を取り込む（上書きして消さないため）
+});
 let quotaAt = 0;
 function quotaToast() { if (Date.now() - quotaAt > 20000) { quotaAt = Date.now(); toast('端末の容量がいっぱいです。書き出してください', { err: true, ms: 6000 }); } }
 
 function renderRoast() {
   const d = S.draft; if (!d) return show('home');
   const auto = isAuto(d);
-  if (auto) { Sources.use(d.source); if (!S.live && d.startedAt) rebuildLive(d); }
+  if (auto) { if (!S.ro) Sources.use(d.source); if (!S.live && d.startedAt) rebuildLive(d); }
   $('#rBean').textContent = d.beanName || '豆の名前なし';
   $('#rGreen').textContent = d.greenWeight ? `生豆 ${d.greenWeight}g` : '';
   $('#startArea').hidden = !!d.startedAt;
@@ -1909,8 +2046,11 @@ function renderRoast() {
   const primary = auto ? d.channels.find(c => c.key === d.primary) : null;
   $('#gTempLabel').textContent = primary ? (primary.name || '豆温度') : '排気温度';
   $('#lockNote').hidden = !(auto && !lockDismissed && (!ls.get('roastlog.lockNote') || !('wakeLock' in navigator)));
+  if (d.undone && !d.startedAt) banner('redo', '投入を取り消しました。取り消す前の記録は、まだ戻せます', { action: { label: 'やり直す', fn: redoCharge }, close: false }); else clearBanner('redo');
+  if (d.dropPending != null && !dropWaitSince) dropWaitSince = Date.now();
+  paintRo(); paintBanners();
   kpBuf = ''; chipCache = ''; paintLiveLegend(); renderKeypad(); renderEvents(); renderControls(); paintConn(); updateGauges(); drawLive(true);
-  if (d.startedAt || auto) startTick();
+  if ((d.startedAt || auto) && !S.ro) startTick();
 }
 function renderKeypad() {
   $('#kpVal').textContent = kpBuf || '—';
@@ -1952,7 +2092,7 @@ function stageHtml(d, t) {
   const fc = evTime(d, 'fc1'); let dry = evTime(d, 'dry'), est = false;
   if (dry == null && S.live && S.live.dryEst != null && (fc == null || S.live.dryEst <= fc)) { dry = S.live.dryEst; est = true; }
   const a = dry != null ? dry : fc != null ? fc : t, b = dry != null ? (fc != null ? fc - dry : t - dry) : 0, c = fc != null ? t - fc : 0;
-  const seg = (cls, name, sec, e) => sec > 0 ? `<i class="${cls}${e ? ' est' : ''}" style="flex:${sec}">${name}${e ? '（推定）' : ''} ${fmt(sec)}</i>` : '';
+  const seg = (cls, name, sec, e) => sec > 0 ? `<i class="${cls}${e ? ' est' : ''}" style="flex:${sec} 1 0"><span>${name}${e ? '（推定）' : ''}<br>${fmt(sec)}</span></i>` : '';
   const dtr = fc != null && t > 0 ? r1((t - fc) / t * 100) : null;
   const pc = d.channels && d.channels.find(x => x.key === d.primary), thr = Number(settings().dryEstTemp) || 150;
   const note = est ? `乾燥の終わりは ${pc ? chShort(pc) : ''} ${thr}℃ 到達で推定（黄色化ボタンで確定）` : '乾燥 → メイラード → 発達';
@@ -1963,14 +2103,15 @@ function updateGauges() {
   if (isAuto(d) && LV) return updateGaugesAuto(d);
   const pts = withRor(d.points); const last = pts[pts.length - 1];
   $('#gTime').textContent = fmt(elapsed());
-  $('#gTemp').innerHTML = last ? `${last.temp}<small>℃</small>` : '—';
+  $('#gTemp').innerHTML = last ? `${last.temp.toFixed(1)}<small>℃</small>` : '—';
   const box = $('#gRorBox'); box.classList.remove('flick', 'crash');
   if (last && last.ror != null) {
     const prev = pts[pts.length - 2];
-    const arrow = prev && prev.ror != null ? (last.ror > prev.ror ? ' ↑' : last.ror < prev.ror ? ' ↓' : ' →') : '';
-    $('#gRor').innerHTML = `${last.ror.toFixed(1)}<small>${arrow}</small>`;
+    const dv = prev && prev.ror != null ? last.ror - prev.ror : null, nt = $('#gRorNote'); nt.classList.remove('trend');
+    $('#gRor').textContent = last.ror.toFixed(1);
     if (last.flag) box.classList.add(last.flag);
-    $('#gRorNote').textContent = last.flag === 'flick' ? '急上昇' : last.flag === 'crash' ? '急降下' : '';
+    if (last.flag) nt.textContent = last.flag === 'flick' ? '急上昇' : '急降下';
+    else { nt.classList.add('trend'); nt.textContent = dv == null ? '' : dv > 0.05 ? 'RoR 上昇中' : dv < -0.05 ? 'RoR 下降中' : 'RoR 横ばい'; }
   } else { $('#gRor').textContent = '—'; $('#gRorNote').textContent = ''; }
   if (d.startedAt) {
     const left = Math.max(0, nextDue - elapsed());
@@ -1978,23 +2119,30 @@ function updateGauges() {
     $('#cdBar').style.width = (100 - left / d.interval * 100) + '%';
   } else { $('#cdText').textContent = '投入でタイマーが動き出します'; $('#cdBar').style.width = '0'; }
 }
+// RoR ゲージの表示（自動測定）。ドラムは中点まで「—」、手網は計算の窓（60 秒など）が埋まるまで「—」。矢印ではなく「上昇中／下降中」で書く
+function rorGauge(d, last, el) {
+  const box = $('#gRorBox'), note = $('#gRorNote'); box.classList.remove('flick', 'crash'); note.classList.remove('trend');
+  const W = S.live && S.live.R ? S.live.R.W : autoWin(settings(), d.roasterType);
+  let wait = null;
+  if (!d.startedAt) wait = '';
+  else if (d.roasterType === 'tenami') { if (el < W) wait = `窓が埋まるまで あと ${Math.max(1, Math.ceil(W - el))} 秒`; }
+  else if (evTime(d, 'tp') == null) wait = '中点のあと表示';
+  if (wait != null || !last || last.ror == null) { $('#gRor').textContent = '—'; note.textContent = wait != null ? wait : ''; if (wait) note.classList.add('trend'); return; }
+  $('#gRor').textContent = last.ror.toFixed(1);
+  if (last.flag) { box.classList.add(last.flag); note.textContent = last.flag === 'flick' ? '急上昇' : '急降下'; return; }
+  const dv = last.prev != null ? last.ror - last.prev : 0;
+  note.classList.add('trend'); note.textContent = last.prev == null ? '' : dv > 0.05 ? 'RoR 上昇中' : dv < -0.05 ? 'RoR 下降中' : 'RoR 横ばい';
+}
 // 自動測定のゲージ。S.live のキャッシュを読むだけ（全点の再計算はしない）
 function updateGaugesAuto(d) {
   const L = S.live, cur = LV.cur, pi = primIdx(d), el = d.startedAt ? elapsed() : 0;
   $('#gTime').textContent = fmt(el);
   const f = cur ? cur.f[pi] : 0, disp = medianLast3(d);
-  $('#gTemp').innerHTML = f ? `<span style="color:var(--danger);font-size:28px">${esc(FAULT_NAMES[f] || '故障')}</span>` : disp != null ? `${r1(disp)}<small>℃</small>` : '—';
-  const box = $('#gRorBox'); box.classList.remove('flick', 'crash');
-  const last = d.startedAt && L ? L.last : null;
-  if (last && last.ror != null) {
-    const arrow = last.prev != null ? (last.ror > last.prev ? ' ↑' : last.ror < last.prev ? ' ↓' : ' →') : '';
-    $('#gRor').innerHTML = `${last.ror.toFixed(1)}<small>${arrow}</small>`;
-    if (last.flag) box.classList.add(last.flag);
-    $('#gRorNote').textContent = last.flag === 'flick' ? '急上昇' : last.flag === 'crash' ? '急降下' : '';
-  } else { $('#gRor').textContent = '—'; $('#gRorNote').textContent = ''; }
+  $('#gTemp').innerHTML = f ? `<span style="color:var(--danger);font-size:28px">${esc(FAULT_NAMES[f] || '故障')}</span>` : disp != null ? `${disp.toFixed(1)}<small>℃</small>` : '—';
+  rorGauge(d, d.startedAt && L ? L.last : null, el);
   const chips = d.channels.filter(c => c.key !== d.primary && c.role !== 'off').map(c => { const i = chIdx(c.key), ff = cur ? cur.f[i] : 0, v = cur ? cur.v[i] : null;
     const er = L && L.RE && c.key === L.etKey && L.ptsE.length && !ff ? ` <small class="muted">RoR ${L.ptsE[L.ptsE.length - 1].ror.toFixed(1)}</small>` : '';
-    return `<span class="chip${ff ? ' fault' : ''}"><b style="background:${esc(c.color)}"></b>${esc(c.name)} <span class="num">${ff ? esc(FAULT_NAMES[ff] || '故障') : v == null ? '—' : r1(v) + '℃'}</span>${er}</span>`; }).join('');
+    return `<span class="chip${ff ? ' fault' : ''}"><b style="background:${esc(c.color)}"></b>${esc(c.name)} <span class="num">${ff ? esc(FAULT_NAMES[ff] || '故障') : v == null ? '—' : v.toFixed(1) + '℃'}</span>${er}</span>`; }).join('');
   if (chips !== chipCache) { chipCache = chips; $('#gChips').innerHTML = chips; }
   if (d.startedAt) $('#stageBand').innerHTML = stageHtml(d, Math.max(0, Math.round(el)));
   paintConn();
@@ -2024,6 +2172,7 @@ function startTick() {
     const d = S.draft; if (!d) return stopTick();
     if (isAuto(d)) {
       if (d.status === 'finishing') return stopTick();
+      if (d.dropPending != null && checkDropWait()) return;
       if (S.view === 'roast') { updateGauges(); drawLive(); }
       flushDraft(); return;
     }
@@ -2121,16 +2270,16 @@ async function askUndoCharge() {
 }
 function doUndoCharge() {
   const d = S.draft; if (!d || !d.startedAt) return;
-  undoneCharge = { startedAt: d.startedAt, events: d.events, changes: d.changes, undo: d.undo, gaps: d.gaps, series: d.series, noAutoTp: d.noAutoTp, current: { ...d.current }, initial: { ...d.initial } };
-  d.startedAt = null; d.status = 'ready'; d.events = []; d.changes = []; d.undo = []; d.gaps = []; d.autoOff = true; d.noAutoTp = false;
+  undoneCharge = d.undone = { startedAt: d.startedAt, events: d.events, changes: d.changes, undo: d.undo, gaps: d.gaps, series: d.series, noAutoTp: d.noAutoTp, clk: d.clk, current: { ...d.current }, initial: { ...d.initial } };   // 再読み込みのあとでも「やり直す」を使えるよう、下書きに残す
+  d.startedAt = null; d.status = 'ready'; d.events = []; d.changes = []; d.undo = []; d.gaps = []; d.autoOff = true; d.noAutoTp = false; d.clk = [];
   d.series = { dt: 1, start: -30, scale: 10, data: Object.fromEntries(d.channels.map(c => [c.key, []])) };
   S.live = null; stopTick();
-  toast('投入前に戻しました', { action: { label: 'やり直す', fn: redoCharge }, ms: 12000 }); saveDraft(); renderRoast();
+  saveDraft(); renderRoast(); toast('投入前に戻しました');
 }
 function redoCharge() {
-  const d = S.draft, u = undoneCharge; if (!d || !u || d.startedAt) return;
-  Object.assign(d, { startedAt: u.startedAt, status: 'roasting', events: u.events, changes: u.changes, undo: u.undo, gaps: u.gaps, series: u.series, noAutoTp: u.noAutoTp, current: u.current, autoOff: false });
-  undoneCharge = null; rebuildLive(d);
+  const d = S.draft, u = d && d.undone || undoneCharge; if (!d || !u || d.startedAt) return;
+  Object.assign(d, { startedAt: u.startedAt, status: 'roasting', events: u.events, changes: u.changes, undo: u.undo, gaps: u.gaps, series: u.series, noAutoTp: u.noAutoTp, clk: u.clk || [], current: u.current || d.current, autoOff: false });
+  undoneCharge = null; d.undone = null; clearBanner('redo'); rebuildLive(d);
   (LV ? LV.pre : []).forEach(e => recordEnt(d, e)); // 取り消していたあいだに届いたサンプルも入れる（足りない秒は欠測）
   toast('投入を元に戻しました'); saveDraft(); renderRoast();
 }
@@ -2146,20 +2295,49 @@ function charge(t0Epoch, info) {
   }
   const manual = !(info && info.auto);
   d.startedAt = t0Epoch != null ? t0Epoch : (LV && LV.cur ? LV.cur.epoch : Sources.active.now()); d.status = 'roasting';
-  S.live = newLive(d);
-  (LV ? LV.pre : []).forEach(e => { if (Math.round((e.epoch - d.startedAt) / 1000) >= d.series.start) recordEnt(d, e); });
+  S.live = newLive(d); d.clk = []; d.undone = null; clearBanner('redo');
+  const ce = LV && LV.pre.find(e => e.epoch === d.startedAt); if (ce) d.clk.push({ boot: ce.boot, seq0: ce.seq, t0: 0 });   // 投入したサンプルが t = 0
+  (LV ? LV.pre : []).forEach(e => { if (tOf(d, e) >= d.series.start) recordEnt(d, e); });
   if (manual && Sources.active.control) Sources.active.control({ charge: true }); // シミュレーターの豆も投入する
   unlockAudio();
   if (!manual) { pushUndo({ type: 'autoCharge' }); toast(`投入を検知しました（${fmt(info.ago)} 前）`, { action: { label: '取り消す', fn: askUndoCharge }, ms: 9000 }); }
   keepAwake(); saveDraft(); renderRoast();
 }
+// 排出: 時刻はタップした時点（t0）。自動測定で接続が live でない（または bf の途中）ときは、すぐには終わらせず、最大 15 秒、機器の残り（bf）を待つ（9.5）。
+// 待っている間は status は roasting のまま（再読み込みしても続きから待てる）。受け取れなかった分は gaps に入れる
+let dropWaitSince = 0;
+const DROP_WAIT_MS = 15000;
 function doDrop(t0) {
-  const d = S.draft; if (!d || !d.startedAt || d.status !== 'roasting') return;
-  let t = Math.round(t0);
-  if (isAuto(d) && S.live && S.live.lastT != null) t = Math.min(t, S.live.lastT); // 最後に受け取ったサンプルより先にはしない（排出の温度が必ず残る）
+  const d = S.draft; if (!d || !d.startedAt || d.status !== 'roasting' || d.dropPending != null) return;
+  const t = Math.round(t0);
+  if (!isAuto(d)) return finishDrop(d, t);
+  d.dropPending = t; dropWaitSince = Date.now(); saveDraft();
+  if (!checkDropWait()) { paintDropWait(); updateGauges(); renderEvents(); }
+}
+function dropReady(d) {
+  const L = S.live, t = d.dropPending; if (!L || L.lastT == null) return false;
+  if (L.lastT >= t && !(d.gaps || []).some(g => g.from <= t)) return true;      // t までの分は全部ある
+  if (L.lastT >= t && connState() === 'live') return Date.now() - Math.max(LV.liveSince || 0, LV.lastBf || 0) > 2500;   // つながり直した直後の bf を少し待つ。来なければ欠測のまま
+  return false;
+}
+function paintDropWait() {
+  const left = Math.max(0, Math.ceil((DROP_WAIT_MS - (Date.now() - dropWaitSince)) / 1000));
+  banner('dropwait', `機器から残りを受け取っています（あと ${left} 秒まで待ちます）`, { close: false });
+}
+// 待ちを終えられるなら終えて true
+function checkDropWait() {
+  const d = S.draft; if (!d || d.dropPending == null) return false;
+  if (!dropWaitSince) dropWaitSince = Date.now();
+  if (dropReady(d) || Date.now() - dropWaitSince >= DROP_WAIT_MS) { finishDrop(d, d.dropPending); return true; }
+  paintDropWait(); return false;
+}
+function finishDrop(d, t) {
+  d.dropPending = null; dropWaitSince = 0; clearBanner('dropwait');
   d.events = d.events.filter(e => e.type !== 'drop'); d.events.push({ type: 'drop', t });
   d.dropTime = t; d.status = 'finishing';
   if (isAuto(d)) { // 排出後はサンプルを受け取らない。series の末尾を dropTime までにそろえる
+    const L = S.live;
+    if (L && L.lastT != null && L.lastT < t) (d.gaps = d.gaps || []).push({ from: Math.max(0, L.lastT + 1), to: t });   // 受け取れなかった末尾は欠測
     const n = t - d.series.start + 1;
     d.channels.forEach(c => { const a = d.series.data[c.key]; while (a.length < n) a.push(null); a.length = Math.max(0, n); });
     d.gaps = (d.gaps || []).filter(g => g.from <= t).map(g => ({ from: g.from, to: Math.min(g.to, t) }));
@@ -2169,7 +2347,7 @@ function doDrop(t0) {
   stopTick(); releaseWake(); saveDraft(); show('finish');
 }
 async function markEvent(id) {
-  const d = S.draft; if (!d.startedAt) return;
+  const d = S.draft; if (!d.startedAt || d.dropPending != null || roGuard()) return;
   if (id === 'drop') {
     const tTap = Math.round(elapsed()); // 排出の時刻は、タップした時点（確認のあとではない）
     const ok = await confirmSheet(`${fmt(tTap)} で排出して、焙煎を終了しますか？`, '排出する', true);
@@ -2401,7 +2579,7 @@ function syncSource() {
   const sid = curSourceId(); if (sid === 'manual') Sources.stop(); else Sources.use(sid);
 }
 function renderSettings() {
-  const st = settings(), https = location.protocol === 'https:';
+  const st = settings(), https = location.protocol !== 'http:';
   $('#sFire').value = st.fireLabels.join(','); $('#sDamper').value = st.damperLabels.join(','); $('#sRpm').value = st.rpmOptions.join(',');
   $('#sFlick').value = st.flick; $('#sCrash').value = st.crash;
   settingsInterval = st.interval; segOn('#sInterval', settingsInterval);
@@ -2411,10 +2589,11 @@ function renderSettings() {
   if (https && sv.conn === 'esp32') sv.conn = 'auto';
   segOn('#sType', sv.type); segOn('#sConn', sv.conn); segOn('#sSimSpeed', sv.speed); segOn('#sSimProfile', sv.profile); segOn('#sRorAuto', sv.rorAuto); segOn('#sSmooth', sv.smooth); segOn('#sMains', sv.mains); segOn('#sAvg', sv.avg);
   $('#sSimCharge').value = sm.chargeAfter == null ? 40 : sm.chargeAfter; $('#sSimNoise').value = sm.noise == null ? 0.3 : sm.noise;
-  $('#sAutoCharge').checked = st.autoCharge !== false; $('#sAutoTP').checked = st.autoTP !== false; $('#sDropHint').checked = st.autoDropHint !== false;
+  $('#sAutoCharge').checked = st.autoCharge !== false; $('#sAutoTP').checked = st.autoTP !== false; $('#sDropHint').checked = st.autoDropHint == null ? type !== 'tenami' : !!st.autoDropHint;
   $('#sShowEt').checked = !!st.showEtRor; $('#sFlagBeep').checked = st.flagBeep !== false; $('#sDryTemp').value = st.dryEstTemp || 150;
   $('#sHost').value = (st.conn && st.conn.host) || '';
   $('#sConnEsp').hidden = https; $('#sHttpsNote').hidden = !https; $('#sHostBox').hidden = https;
+  $('#pCh').classList.toggle('devonly', https); $('#pCal').classList.toggle('devonly', https);   // https・file:// では、機器につながらないので使えない
   $('#storageNote').textContent = Store.mode === 'cloud'
     ? '記録は claude.ai に保存されています。念のため、ときどき書き出しておくと安心です。'
     : '記録はこの端末のブラウザにだけ保存されています。消えないよう、こまめに書き出してください。';
@@ -2436,6 +2615,7 @@ function paintChannelForm() {
   const pc = chs.find(c => c.key === pk); $('#chPrimary').textContent = pc ? `主チャンネル（自動）: CH${chIdx(pc.key) + 1} ${pc.name || ''}（豆温度 → 排気 → 最初の有効なチャンネルの順）` : '使うチャンネルがありません';
   $('#calCh').innerHTML = live.map(c => `<option value="${chIdx(c.key)}"${chIdx(c.key) === Cal.ch ? ' selected' : ''}>CH${chIdx(c.key) + 1} ${esc(c.name || '')}</option>`).join('');
   if (live.length && !live.some(c => chIdx(c.key) === Cal.ch)) Cal.ch = chIdx(live[0].key);
+  formBase();
 }
 function readChannelForm() {
   return [0, 1, 2].map(i => { const role = $('#chRole' + i).value, off = num($('#chOff' + i).value);
@@ -2445,26 +2625,74 @@ const toKeyCh = c => ({ key: 'c' + (c.idx + 1), enabled: c.enabled, role: c.role
 async function saveChannels() {
   const chs = readChannelForm();
   if (!chs.some(c => c.enabled)) { toast('使うチャンネルを1つ以上選んでください'); return; }
-  await pushChannels(chs, '機器に保存しました', 'チャンネルの設定を保存しました');
+  if (Sources.active.id === 'esp32') {
+    const diff = diffChannels(CfgS.base && CfgS.base.channels, chs);   // フォームを開いたときの設定との差分だけ送る
+    if (!diff.length) { toast('変更はありません'); return; }
+    await pushChannels(diff, '機器に保存しました', '', CfgS.base ? CfgS.base.rev : CfgS.rev);
+    return;
+  }
+  await pushChannels(chs, '', 'チャンネルの設定を保存しました');
 }
-async function pushChannels(chs, okEsp, okLocal) {
+async function pushChannels(chs, okEsp, okLocal, baseRev) {
   const src = Sources.active;
   if (src.id === 'esp32') {
-    try { await src.setConfig({ channels: chs }); chDirty = false; toast(okEsp); paintChannelForm(); }
-    catch (e) { toast(e && e.code === 'nak' ? `機器が受け付けませんでした（${e.err}）` : 'ESP32 につながっていないため、保存できませんでした', { err: true }); }
+    try { await cfgSend({ channels: chs }, baseRev !== undefined ? baseRev : CfgS.rev); chDirty = false; $('#chConflict') && ($('#chConflict').hidden = true); toast(okEsp); paintChannelForm(); }
+    catch (e) {
+      if (e && e.code === 'nak' && e.err === 'stale') { chDirty = false; if (S.view === 'settings') { paintChannelForm(); $('#chConflict').hidden = true; } toast('ほかの端末で設定が変わっていたため、保存しませんでした。最新の設定を読み直しました。確かめてから、もう一度保存してください', { err: true, ms: 6000 }); }
+      else toast(e && e.code === 'nak' ? `機器が受け付けませんでした（${e.err}）` : 'ESP32 につながっていないため、保存できませんでした', { err: true });
+    }
     return;
   }
   const st = settings(); st.channels = st.channels.map((c, i) => { const x = chs.find(y => y.idx === i); return x ? { ...c, ...Object.fromEntries(Object.entries(toKeyCh(x)).filter(e => e[1] !== undefined)) } : c; });
   const ok = await Store.put('config', 'app', st); chDirty = false; savedToast(ok, okLocal); paintChannelForm();
 }
+// 設定の版番号（9.5）。cfg.rev は機器が設定を変えるたびに +1。setcfg には、フォームを開いた（描画した）ときの rev を baseRev として付け、変えた項目だけを送る。
+// 違っていれば機器は ack{ok:false, err:'stale', rev} を返す → 読み直しを促す。base は「フォームを描いたときの cfg」
+const CfgS = { rev: null, base: null, pending: 0 };
+function formBase() { const st = settings(); CfgS.base = { rev: CfgS.rev, channels: st.channels.map(c => ({ ...c })), mains: st.mains, avg: st.ampAvg }; }
+const sameCol = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+// フォームの値（全チャンネル）と base との差分。変わった項目だけを { idx, ... } で返す
+function diffChannels(base, chs) {
+  const out = [];
+  chs.forEach(c => {
+    const b = (base || [])[c.idx] || {}, o = { idx: c.idx };
+    if (!!b.enabled !== !!c.enabled) o.enabled = c.enabled;
+    if ((b.role || 'off') !== c.role) o.role = c.role;
+    if ((b.name || '') !== c.name) o.name = c.name;
+    if (!sameCol(b.color, c.color)) o.color = c.color;
+    if (Math.round((b.offset || 0) * 10) !== Math.round((c.offset || 0) * 10)) o.offset = c.offset;
+    if (Object.keys(o).length > 1) out.push(o);
+  });
+  return out;
+}
+async function cfgSend(partial, baseRev) {
+  const src = Sources.active, msg = { ...partial };
+  if (baseRev != null) msg.baseRev = baseRev;
+  CfgS.pending++;
+  try { return await src.setConfig(msg); } finally { setTimeout(() => { CfgS.pending--; }, 800); }   // cfg が ack のあとに届いても、自分の変更として扱う
+}
 // ESP32 から cfg が届いた（hello・setcfg の結果）: 機器の NVS が正本。設定を上書きして画面に反映する
 function onConfig(cfg) {
-  const st = settings(), next = cfg.channels.map(c => ({ ...c })); let ch = false;
+  const st = settings(), next = cfg.channels.map(c => ({ ...c })), prev = st.channels.map(c => ({ ...c })); let ch = false;
+  const self = CfgS.pending > 0, oldRev = CfgS.rev, revChanged = cfg.rev != null && oldRev != null && cfg.rev !== oldRev;
   if (JSON.stringify(next) !== JSON.stringify(st.channels)) { st.channels = next; ch = true; }
   if (cfg.mains && cfg.mains !== st.mains) { st.mains = cfg.mains; ch = true; }
   if (cfg.avg && cfg.avg !== st.ampAvg) { st.ampAvg = cfg.avg; ch = true; }
+  CfgS.rev = cfg.rev != null ? cfg.rev : null;
   if (ch) { Store.put('config', 'app', st); }
-  if (S.view === 'settings') { if (!chDirty) paintChannelForm(); segOn('#sMains', st.mains); segOn('#sAvg', st.ampAvg); sv.mains = st.mains; sv.avg = st.ampAvg; paintSettingsLive(); }
+  // 焙煎中に補正値が変わったら警告（途中から温度の基準が変わる）
+  const d = S.draft;
+  if (ch && d && isAuto(d) && d.status === 'roasting' && d.source === 'esp32') {
+    const diff = d.channels.map(c => { const i = chIdx(c.key), a = (prev[i] || {}).offset || 0, b = (next[i] || {}).offset || 0; return Math.round(a * 10) !== Math.round(b * 10) ? `CH${i + 1}: ${a} → ${b}℃` : null; }).filter(Boolean);
+    if (diff.length) banner('cfgchg', `焙煎中に補正値が変わりました（${diff.join('、')}）。この焙煎の温度は、変わった時刻から補正が違います`, { err: true });
+  }
+  if (S.view === 'settings') {
+    const dirty = chDirty;
+    if (!dirty) { paintChannelForm(); formBase(); $('#chConflict').hidden = true; }
+    else if (self) { formBase(); }                                   // 自分の保存の結果: 書きかけの項目はそのまま、base だけ進める
+    else if (revChanged || ch) { $('#chConflict').hidden = false; }  // ほかの端末が変えた: 書きかけは消さず、警告を出す
+    segOn('#sMains', st.mains); segOn('#sAvg', st.ampAvg); sv.mains = st.mains; sv.avg = st.ampAvg; paintSettingsLive();
+  }
   if (S.view === 'setup') paintMeas();
   if (S.view === 'diag') lazy(paintDiag);
 }
@@ -2505,7 +2733,7 @@ async function saveSettings() {
   const ca = num($('#sSimCharge').value), nz = num($('#sSimNoise').value), dt = num($('#sDryTemp').value);
   Object.assign(st, { fireLabels: fire, damperLabels: damper, rpmOptions: rpm, flick: num($('#sFlick').value) ?? 3, crash: num($('#sCrash').value) ?? 4, interval: settingsInterval, rorWindow: settingsRorWindow,
     roasterType: sv.type || 'drum', conn: { ...(st.conn || {}), type: sv.conn || 'auto', host: $('#sHost').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '') }, rorWindowAuto: Number(sv.rorAuto) || (sv.type === 'tenami' ? 60 : 30), rorSmooth: Number(sv.smooth) >= 0 ? Number(sv.smooth) : 5,
-    autoCharge: $('#sAutoCharge').checked, autoTP: $('#sAutoTP').checked, autoDropHint: $('#sDropHint').checked, showEtRor: $('#sShowEt').checked, flagBeep: $('#sFlagBeep').checked,
+    autoCharge: $('#sAutoCharge').checked, autoTP: $('#sAutoTP').checked, autoDropHint: ($('#sDropHint').checked === (sv.type !== 'tenami') && st.autoDropHint == null) ? null : $('#sDropHint').checked, showEtRor: $('#sShowEt').checked, flagBeep: $('#sFlagBeep').checked,
     dryEstTemp: dt != null && dt > 0 ? dt : 150,
     sim: { ...(st.sim || {}), speed: Number(sv.speed) || 1, profile: sv.profile || 'drum', noise: nz == null || nz < 0 ? 0.3 : nz, chargeAfter: ca == null || ca < 0 ? 40 : ca } });
   const ok = await Store.put('config', 'app', st); savedToast(ok, '設定を保存しました');
@@ -2513,7 +2741,12 @@ async function saveSettings() {
 }
 async function saveDevice() {
   const src = Sources.active; if (src.id !== 'esp32') { toast('ESP32 につながっていません', { err: true }); return; }
-  try { await src.setConfig({ amp: { mains: Number(sv.mains) || 50, avg: Number(sv.avg) || 4 } }); toast('機器に保存しました'); } catch (e) { toast('保存できませんでした', { err: true }); }
+  const b = CfgS.base || {}, amp = {};
+  if ((Number(sv.mains) || 50) !== b.mains) amp.mains = Number(sv.mains) || 50;
+  if ((Number(sv.avg) || 4) !== b.avg) amp.avg = Number(sv.avg) || 4;
+  if (!Object.keys(amp).length) { toast('変更はありません'); return; }
+  try { await cfgSend({ amp }, b.rev != null ? b.rev : CfgS.rev); toast('機器に保存しました'); }
+  catch (e) { if (e && e.code === 'nak' && e.err === 'stale') { sv.mains = settings().mains; sv.avg = settings().ampAvg; segOn('#sMains', sv.mains); segOn('#sAvg', sv.avg); formBase(); toast('ほかの端末で設定が変わっていたため、保存しませんでした。最新の設定を読み直しました。確かめてから、もう一度保存してください', { err: true, ms: 6000 }); } else toast('保存できませんでした', { err: true }); }
 }
 async function identifyDevice() {
   const src = Sources.active; if (src.id !== 'esp32') { toast('ESP32 につながっていません（シミュレーターに LED はありません）'); return; }
@@ -2536,8 +2769,8 @@ function calFeed(s) {
   if (s.v[i] == null) return;
   R.vals.push(s.v[i] - chOffset(i));
   if (R.vals.length >= 10) {
-    const q = RoastCore.calStats(R.vals), tg = R.target; Cal.run = null;
-    Cal.res = { ...q, target: tg, ok: q.sd < 0.2, offset: Math.round((tg - q.mean) * 10) / 10 }; paintCal();
+    const kept = RoastCore.calClean(R.vals), q = RoastCore.calStats(kept), tg = R.target; Cal.run = null;   // 外れ値を除いてから、ばらつきを判定する
+    Cal.res = { ...q, dropped: R.vals.length - kept.length, target: tg, ok: q.n >= 8 && q.sd < 0.3, offset: q.mean == null ? 0 : Math.round((tg - q.mean) * 10) / 10 }; paintCal();
   } else lazy(paintCal);
 }
 function paintCalLive() { }
@@ -2550,7 +2783,7 @@ function paintCal() {
   $('#calStart').disabled = !!R;
   if (R) out.innerHTML = `<div class="dg-msg warn" id="calProg">測定中… ${R.vals.length} / 10</div>`;
   else if (r && r.err) out.innerHTML = `<div class="dg-msg bad" id="calResult">${esc(r.err)}</div>`;
-  else if (r) out.innerHTML = `<dl class="kv" id="calResult"><dt>平均</dt><dd>${r1(r.mean)}℃（生の値）</dd><dt>標準偏差</dt><dd>${r.sd.toFixed(2)}℃ <span class="pill ${r.ok ? 'ok' : 'bad'}">${r.ok ? '安定（0.2 未満）' : 'ばらつきが大きい'}</span></dd><dt>基準</dt><dd>${r.target}℃</dd><dt>補正値</dt><dd id="calOffset">${r.offset > 0 ? '+' : ''}${r.offset}℃（基準 − 平均）</dd></dl>` +
+  else if (r) out.innerHTML = `<dl class="kv" id="calResult"><dt>平均</dt><dd>${r1(r.mean)}℃（生の値）</dd><dt>標準偏差</dt><dd>${r.sd.toFixed(2)}℃ <span class="pill ${r.ok ? 'ok' : 'bad'}">${r.ok ? '安定（0.3 未満）' : 'ばらつきが大きい'}</span>${r.dropped ? ` <span class="small muted">外れ値 ${r.dropped} 個を除く</span>` : ''}</dd><dt>基準</dt><dd>${r.target}℃</dd><dt>補正値</dt><dd id="calOffset">${r.offset > 0 ? '+' : ''}${r.offset}℃（基準 − 平均）</dd></dl>` +
     (r.ok ? `<button class="btn primary" data-action="cal-apply">この補正値を保存</button>` : '<div class="small muted">温度が安定してから、もう一度測ってください。</div>');
   else out.innerHTML = '';
 }
@@ -2568,18 +2801,25 @@ async function calApply() {
 
 /* ---------- センサー診断（組み立て直後の配線確認）---------- */
 const FAULT_HELP = {
-  1: 'プローブがつながっていないか、線が切れています。端子（＋ー）のゆるみ・差し込みを確かめてください。',
+  1: 'プローブがつながっていないか、線が切れています。端子（＋ー）のゆるみ・差し込みを確かめてください。使っていないチャンネルの端子に挿していないかも見てください。',
   2: '＋かーの線が GND に触れています。端子まわりの金属接触を確かめてください。',
   3: '線が VCC（電源）に触れています。端子まわりを確かめてください。',
   4: '電圧異常です。プローブの線が金属に触れていないか、アンプの電源（3.3V）を確かめてください。',
-  5: '測定できる温度の範囲外です。K型のプローブか、＋ー（黄＋・赤ー）が逆でないかを確かめてください。',
+  5: '測定できる温度の範囲外です。K型のプローブか、＋ーが逆でないかを確かめてください（線の色は規格で違います。K型は − 側が磁石に付きます）。',
   6: '基板の温度が異常です。基板が熱くなっていないか確かめてください（炎から離す）。',
   7: 'アンプの基板が見つかりません。配線（CS・SCK・MISO・3.3V・GND）を確かめてください。',
   8: '値が更新されていません。アンプの基板の配線・電源を確かめてください。',
 };
+// 確認の待ち時間（案内の文と判定で同じ値を使う）
+const PINCH_SEC = 15, WATER_SEC = 25, WATER_C = 40;
 const Dg = { lit: [0, 0, 0], seen: [false, false, false], test: null, result: {} };
 function dgHist(i) { return (LV ? LV.pre : []).map(e => e.f[i] ? null : e.raw[i]); }
-function dgStart(i) { Dg.test = { ch: i, t0: Date.now(), base: [0, 1, 2].map(k => RoastCore.median(dgHist(k).slice(-6))) }; Dg.result = {}; paintDiag(); }
+function dgStart(i, mode) {
+  mode = mode === 'water' ? 'water' : 'pinch';
+  Dg.test = { ch: i, mode, t0: Date.now(), base: [0, 1, 2].map(k => RoastCore.median(dgHist(k).slice(-6))) };
+  delete Dg.result[i]; Dg.seen[i] = false; Dg.lit[i] = 0;   // 前回の結果は消す
+  paintDiag();
+}
 function dgSpark(a) {
   const v = a.slice(-60); const ok = v.filter(x => x != null); if (ok.length < 2) return '<svg width="100%" height="30" aria-hidden="true"></svg>';
   let lo = Math.min(...ok), hi = Math.max(...ok); if (hi - lo < 2) { const m = (hi + lo) / 2; lo = m - 1; hi = m + 1; }
@@ -2588,66 +2828,71 @@ function dgSpark(a) {
 }
 function renderDiag() {
   const sid = curSourceId(); if (sid !== 'manual') syncSource();
+  const nh = location.protocol !== 'http:'; document.querySelector('[data-view="diag"]').classList.toggle('devonly', nh);
+  $('#dgPinchSec').textContent = PINCH_SEC; $('#dgWaterSec').textContent = WATER_SEC;
   Dg.lit = [0, 0, 0]; Dg.seen = [false, false, false]; Dg.test = null; Dg.result = {};
   paintDiag();
 }
 function paintDiag() {
   if (S.view !== 'diag') return;
+  if (location.protocol !== 'http:') return;
   const src = Sources.active, chs = settings().channels, cur = LV && LV.cur, now = Date.now();
   const st = src.id === 'manual' ? 'idle' : connState();
   const conn = $('#dgConn'); conn.className = 'conn-row ' + (st === 'live' ? 'live' : st === 'down' ? 'down' : 'stale');
   conn.innerHTML = src.id === 'manual' ? '<span>測定器につながっていません。設定の「接続方式」で ESP32 かシミュレーターを選んでください。</span>' : `<span>${(CONN_TEXT[st] || CONN_TEXT.idle)[0]}</span><span class="muted">${src.id === 'sim' ? 'シミュレーター ×' + src.speed : esc(src.host || '')}</span>`;
   const sim = src.id === 'sim';
+  const isOn = i => { const c = chs[i] || { enabled: false, role: 'off' }; return sim || (c.enabled && c.role !== 'off'); };
+  // 断線などの故障が出たチャンネルは、前回の確認結果を消す
+  [0, 1, 2].forEach(i => { if (cur && cur.f[i] && isOn(i)) { delete Dg.result[i]; Dg.seen[i] = false; Dg.lit[i] = 0; if (Dg.test && Dg.test.ch === i) Dg.test = null; } });
+  if (Dg.test) diagJudge();
   const cards = [0, 1, 2].map(i => {
-    const c = chs[i] || { enabled: false, role: 'off', name: '' }, on = sim || (c.enabled && c.role !== 'off');
-    const f = cur ? cur.f[i] : 0, v = cur ? cur.raw[i] : null, h = dgHist(i), tr = RoastCore.trend(h);
-    if (on && tr != null && Math.abs(tr) >= 2 && !f) { if (tr >= 2) { Dg.lit[i] = now + 3000; Dg.seen[i] = true; } }
+    const c = chs[i] || { enabled: false, role: 'off', name: '' }, on = isOn(i);
+    const f = cur ? cur.f[i] : 0, v = cur ? cur.raw[i] : null, h = dgHist(i), tr = f ? null : RoastCore.trend(h);   // 断線中は傾向を出さない
+    if (on && tr != null && tr >= 2) { Dg.lit[i] = now + 3000; Dg.seen[i] = true; }
     const lit = Dg.lit[i] > now, test = Dg.test && Dg.test.ch === i;
     let msg = '';
-    if (!on) msg = '<div class="dg-msg">使っていないチャンネルです</div><button class="btn ghost" data-action="dg-enable" data-i="' + i + '">使う（有効にして診断する）</button>';
+    if (!on) msg = '<div class="dg-msg">使っていないチャンネルです。プローブがここに挿さっていませんか？ 挿しているときは「使う」を押してください。</div><button class="btn ghost" data-action="dg-enable" data-i="' + i + '">使う（有効にして診断する）</button>';
     else {
       const r = Dg.result[i];
       msg = (tr != null && tr >= 2 ? `<div class="dg-msg ok">▲ 温度が上がっています（${tr > 0 ? '+' : ''}${tr.toFixed(1)}℃）</div>` : tr != null && tr <= -2 ? `<div class="dg-msg warn">▼ 温度が下がっています（${tr.toFixed(1)}℃）</div>` : '')
-        + (test && !Dg.result.done ? '<div class="dg-msg warn">CH' + (i + 1) + ' のプローブを指でつまんで、そのまま待ってください…</div>' : '')
+        + (test ? `<div class="dg-msg warn" id="dgWait${i}">${Dg.test.mode === 'water' ? `CH${i + 1} のプローブの先を、${WATER_C}℃くらいのお湯に入れて、そのまま ${WATER_SEC} 秒待ってください…` : `CH${i + 1} のプローブを指でつまんで、そのまま ${PINCH_SEC} 秒待ってください…`}</div>` : '')
         + (r ? `<div class="dg-msg ${r.cls}" id="dgRes${i}">${esc(r.text)}</div>` : '')
-        + `<button class="btn ghost" data-action="dg-test" data-i="${i}">CH${i + 1} をつまんで確認</button>`;
+        + `<div class="row"><button class="btn ghost" data-action="dg-test" data-i="${i}">CH${i + 1} をつまんで確認</button><button class="btn ghost" data-action="dg-water" data-i="${i}">お湯に入れて確認（${WATER_C}℃）</button></div>`;
     }
     return `<div class="dg-card${lit ? ' lit' : ''}${f ? ' bad' : ''}" id="dgCard${i}" data-lit="${lit ? 1 : 0}"><div class="dg-head"><span class="dg-ch">CH${i + 1}</span><span class="small">${esc(c.name || '')}${on ? '' : '（未使用）'}</span><span class="pill ${!on ? '' : f ? 'bad' : v == null ? 'warn' : 'ok'}">${!on ? '未使用' : f ? esc(FAULT_NAMES[f] || '故障') : v == null ? '値なし' : 'OK'}</span></div>
       <div class="dg-val${f ? ' fault' : ''}" id="dgVal${i}">${!on ? '—' : f ? esc(FAULT_NAMES[f] || '故障') + `<small>F${f}</small>` : v == null ? '—' : v.toFixed(1) + '<small>℃</small>'}</div>
-      ${on ? dgSpark(h) : ''}${msg}</div>`;
+      ${on && !f ? dgSpark(h) : ''}${msg}</div>`;
   }).join('');
   const el = $('#dgCards'); if (el.dataset.h !== cards) { el.dataset.h = cards; el.innerHTML = cards; }
   const cj = LV && LV.cj;
-  $('#dgCj').innerHTML = `<h3>基板（冷接点）の温度</h3><div class="dg-val" id="dgCjVal">${cj == null ? '—' : cj.toFixed(1) + '<small>℃</small>'}</div><div class="small muted">アンプの基板の温度です。室温より 10℃ 以上高いときは、基板が熱をもっています（炎から離してください）。プローブが室温のとき、各チャンネルの値はこの温度に近くなります。</div>`;
-  // 判定
-  if (Dg.test && !Dg.result.done) diagJudge();
+  $('#dgCj').innerHTML = `<h3>基板（冷接点）の温度</h3><div class="dg-val" id="dgCjVal">${cj == null ? '—' : cj.toFixed(1) + '<small>℃</small>'}</div><div class="small muted">アンプの基板の温度です。室温より 10℃ 以上高いときは、基板が熱をもっています（炎から離してください）。プローブが室温のとき、各チャンネルの値は室温に近くなります（基板より少し低いことも多く、差があるだけでは異常とは言えません）。</div>`;
   const fi = [];
   [0, 1, 2].forEach(i => {
-    const c = chs[i] || {}, on = sim || (c.enabled && c.role !== 'off'); if (!on) return;
-    const f = cur ? cur.f[i] : 0, v = cur ? cur.raw[i] : null;
+    if (!isOn(i)) return;
+    const f = cur ? cur.f[i] : 0;
     if (f) fi.push(['bad', `CH${i + 1}: ${FAULT_NAMES[f] || '故障'}（F${f}）。${FAULT_HELP[f] || ''}`]);
-    else if (v != null && cj != null && !Dg.seen[i] && Math.abs(v - cj) > 15 && Math.abs(v - (LV.pre.length > 30 ? RoastCore.median(dgHist(i).slice(0, 5)) : v)) < 1) fi.push(['bad', `CH${i + 1}: ${v.toFixed(1)}℃。プローブが室温のはずなのに、基板温度（${cj.toFixed(1)}℃）と大きく違います。プローブが温まっているか、＋ー（黄＋・赤ー）が逆の可能性があります。`]);
-    else if (!Dg.seen[i] && !Dg.result[i]) fi.push(['', `CH${i + 1}: まだ確かめていません。プローブを指でつまんで、温度が上がるか見てください。`]);
+    else if (!Dg.seen[i] && !Dg.result[i]) fi.push(['', `CH${i + 1}: まだ確かめていません。プローブを指でつまむか、${WATER_C}℃くらいのお湯に入れて、温度が上がるか見てください。`]);
   });
   const vals = [0, 1, 2].map(i => cur && !cur.f[i] ? cur.raw[i] : null);
   for (let a = 0; a < 3; a++) for (let b = a + 1; b < 3; b++) if (vals[a] != null && vals[a] === vals[b] && LV.pre.length > 20 && dgHist(a).slice(-20).every((x, k) => x === dgHist(b).slice(-20)[k])) fi.push(['bad', `CH${a + 1} と CH${b + 1} がずっと同じ値です。同じプローブを読んでいるか、CS 線がつながっています。`]);
-  [0, 1, 2].forEach(i => { const r = Dg.result[i]; if (r && r.cls === 'ok' && Dg.seen[i]) fi.unshift(['', `CH${i + 1}: つまむと温度が上がりました。配線は正しいです。`]); else if (r && r.cls !== 'ok') fi.unshift(['bad', `CH${i + 1}: ${r.text}`]); });
+  [0, 1, 2].forEach(i => { const r = Dg.result[i]; if (r && r.cls === 'ok' && Dg.seen[i]) fi.unshift(['', `CH${i + 1}: 温度が上がりました。配線は正しいです。`]); else if (r && r.cls !== 'ok') fi.unshift(['bad', `CH${i + 1}: ${r.text}`]); });
   if (!fi.length) fi.push(['', '問題は見つかっていません。']);
   const seen = new Set(); $('#dgFinds').innerHTML = fi.filter(x => !seen.has(x[1]) && seen.add(x[1])).map(([c, t]) => `<li class="${c}">${esc(t)}</li>`).join('');
 }
-// 「CH n をつまんで確認」の判定: 15 秒のうちに、基準から 1.5℃ 以上動いたチャンネルを探す
+// 「つまんで／お湯に入れて確認」の判定: 待ち時間（つまむ PINCH_SEC 秒・お湯 WATER_SEC 秒）のうちに、基準から 1.5℃ 以上動いたチャンネルを探す
 function diagJudge() {
-  const T = Dg.test, hist = [0, 1, 2].map(dgHist), res = {};
+  const T = Dg.test, hist = [0, 1, 2].map(dgHist);
   const mv = [0, 1, 2].map(k => { const last = RoastCore.median(hist[k].slice(-3)); return last == null || T.base[k] == null ? null : last - T.base[k]; });
   const up = mv.map((d, k) => (d != null && d >= 1.5 ? k : -1)).filter(k => k >= 0), dn = mv.map((d, k) => (d != null && d <= -1.5 ? k : -1)).filter(k => k >= 0);
-  const i = T.ch;
-  const done = (cls, text) => { Dg.result = { done: true, [i]: { cls, text } }; Dg.test = null; };
+  const i = T.ch, sec = T.mode === 'water' ? WATER_SEC : PINCH_SEC;
+  const chs = settings().channels, sim = Sources.active.id === 'sim';
+  const unused = [0, 1, 2].filter(k => !sim && !((chs[k] || {}).enabled && (chs[k] || {}).role !== 'off'));
+  const done = (cls, text) => { Dg.result[i] = { cls, text }; Dg.test = null; };
   if (up.includes(i) && up.length === 1) { Dg.seen[i] = true; Dg.lit[i] = Date.now() + 3000; done('ok', `CH${i + 1} が ${mv[i].toFixed(1)}℃ 上がりました。配線は正しいです。`); }
   else if (up.length && !up.includes(i)) { Dg.lit[up[0]] = Date.now() + 3000; done('bad', `CH${i + 1} ではなく CH${up[0] + 1} が反応しました。CH${i + 1} と CH${up[0] + 1} の接続（または、設定の役割）が入れ替わっています。`); }
-  else if (up.includes(i)) done('warn', `複数のチャンネルが同時に上がりました（${up.map(k => 'CH' + (k + 1)).join('・')}）。1本ずつつまんでください。`);
-  else if (dn.includes(i)) done('bad', `CH${i + 1} の温度が下がりました。＋ー（黄＋・赤ー）が逆につながっている可能性があります。`);
-  else if (Date.now() - T.t0 > 15000) done('bad', `CH${i + 1} は反応しませんでした。プローブの差し込み、＋ーの端子、アンプの基板の配線を確かめてください。`);
-  if (Dg.result.done) { delete Dg.result.done; }
+  else if (up.includes(i)) done('warn', `複数のチャンネルが同時に上がりました（${up.map(k => 'CH' + (k + 1)).join('・')}）。1本ずつ確認してください。`);
+  else if (dn.includes(i)) done('bad', `CH${i + 1} の温度が下がりました。＋ーが逆につながっている可能性があります（線の色は規格で違います。K型は − 側が磁石に付きます）。`);
+  else if (Date.now() - T.t0 > sec * 1000) done('bad', `CH${i + 1} は反応しませんでした。プローブの差し込み、＋ーの端子、アンプの基板の配線を確かめてください。` + (unused.length ? `${unused.map(k => 'CH' + (k + 1)).join('・')} は「使わない」設定です。そこに挿していないか見てください（挿していたら「使う」にすると値が見えます）。` : '') + (T.mode === 'pinch' ? '太いプローブは、つまんでも温度が上がりにくいことがあります。お湯に入れる方法も試してください。' : ''));
 }
 
 /* ---------- グラフの読み取りカーソル（詳細画面）---------- */
@@ -2753,16 +2998,19 @@ document.addEventListener('click', async e => {
     return;
   }
   const k = e.target.closest('[data-k]'); if (k) { onKey(k.dataset.k); return; }
+  const fba = e.target.closest('[data-fb-act]'); if (fba) { const b = Banners.get(fba.dataset.fbAct); Banners.delete(fba.dataset.fbAct); paintBanners(); if (b && b.action) b.action.fn(); return; }
+  const fbx = e.target.closest('[data-fb-x]'); if (fbx) { clearBanner(fbx.dataset.fbX); return; }
   const ev = e.target.closest('[data-ev]'); if (ev) { markEvent(ev.dataset.ev); return; }
-  const ctl = e.target.closest('[data-ctrl]'); if (ctl) { changeCtrl(ctl.dataset.ctrl, ctl.dataset.v); return; }
+  const ctl = e.target.closest('[data-ctrl]'); if (ctl) { if (!roGuard()) changeCtrl(ctl.dataset.ctrl, ctl.dataset.v); return; }
   const cref = e.target.closest('#calRef button'); if (cref) { Cal.ref = cref.dataset.v; Cal.res = null; paintCal(); return; }
   const nseg = e.target.closest('#sType button, #sConn button, #sSimSpeed button, #sSimProfile button, #sRorAuto button, #sSmooth button, #sMains button, #sAvg button');
   if (nseg) {
     const box = nseg.closest('.seg').id, v = nseg.dataset.v;
     const key = { sType: 'type', sConn: 'conn', sSimSpeed: 'speed', sSimProfile: 'profile', sRorAuto: 'rorAuto', sSmooth: 'smooth', sMains: 'mains', sAvg: 'avg' }[box]; sv[key] = v; segOn('#' + box, v);
+    if (key === 'type' && settings().autoDropHint == null) $('#sDropHint').checked = v !== 'tenami';   // 排出の案内は、手網では初期オフ
     if (key === 'type') { sv.profile = v; segOn('#sSimProfile', v); sv.rorAuto = v === 'tenami' ? 60 : 30; segOn('#sRorAuto', sv.rorAuto); } // 種類に合わせて既定の窓・シミュレーターの焙煎機も切り替える
     if (key === 'conn') $('#sSimBox').hidden = v !== 'sim';
-    if (key === 'conn') { $('#sHostBox').hidden = location.protocol === 'https:'; }
+    if (key === 'conn') { $('#sHostBox').hidden = location.protocol !== 'http:'; }
     return;
   }
   const segB = e.target.closest('#suInterval button, #sInterval button, #sRorWindow button');
@@ -2778,11 +3026,11 @@ document.addEventListener('click', async e => {
   if (act === 'go') { if (a.dataset.to === 'beans') fillBeanForm(null); show(a.dataset.to); }
   else if (act === 'new-roast') { if (S.draft) { toast('焙煎中の記録があります。続けるか破棄してください'); return; } show('setup'); }
   else if (act === 'to-roast') startSetup();
-  else if (act === 'charge') charge();
+  else if (act === 'charge') { if (!roGuard()) charge(); }
   else if (act === 'toggle-sound') { settings().sound = !settings().sound; $('#soundBtn').textContent = settings().sound ? '音：オン' : '音：オフ'; Store.put('config', 'app', settings()); if (settings().sound) beep(); }
-  else if (act === 'abort-roast') { if (await confirmSheet('この焙煎を中止して、記録を破棄しますか？', '中止する', true)) { stopTick(); releaseWake(); S.draft = null; S.live = null; saveDraft(); show('home'); } }
-  else if (act === 'resume') { unlockAudio(); keepAwake(); show(S.draft.status === 'finishing' ? 'finish' : 'roast'); }
-  else if (act === 'discard-draft') { if (await confirmSheet('途中の記録を破棄しますか？元に戻せません。', '破棄する', true)) { S.draft = null; S.live = null; saveDraft(); Sources.stop(); renderHome(); } }
+  else if (act === 'abort-roast') { if (roGuard()) return; if (await confirmSheet('この焙煎を中止して、記録を破棄しますか？', '中止する', true)) { stopTick(); releaseWake(); S.draft = null; S.live = null; saveDraft(); show('home'); } }
+  else if (act === 'resume') { if (S.draft.tab !== TAB || S.ro) { if (!claimDraft()) { toast('別のタブで焙煎を続けています。そちらで操作してください', { err: true }); renderHome(); return; } } unlockAudio(); keepAwake(); show(S.draft.status === 'finishing' ? 'finish' : 'roast'); }
+  else if (act === 'discard-draft') { if (leaseOther() && S.draft && S.draft.tab !== TAB) { toast('別のタブで焙煎を続けています。破棄できません', { err: true }); return; } if (await confirmSheet('途中の記録を破棄しますか？元に戻せません。', '破棄する', true)) { S.draft = null; S.live = null; saveDraft(); Sources.stop(); renderHome(); } }
   else if (act === 'save-finish') saveFinish();
   else if (act === 'open') { S.detailId = a.dataset.id; show('detail'); }
   else if (act === 'save-tasting') saveTasting();
@@ -2799,14 +3047,16 @@ document.addEventListener('click', async e => {
   else if (act === 'del-bean') delBean(a.dataset.id);
   else if (act === 'save-settings') saveSettings();
   else if (act === 'save-channels') saveChannels();
+  else if (act === 'ch-reload') { chDirty = false; paintChannelForm(); $('#chConflict').hidden = true; }
   else if (act === 'save-device') saveDevice();
   else if (act === 'dev-identify') identifyDevice();
   else if (act === 'sim-fault') simFault();
   else if (act === 'cal-start') calStart();
   else if (act === 'cal-apply') calApply();
   else if (act === 'dg-test') dgStart(+a.dataset.i);
+  else if (act === 'dg-water') dgStart(+a.dataset.i, 'water');
   else if (act === 'dg-enable') { const chs = readDiagEnable(+a.dataset.i); pushChannels(chs, '機器に保存しました', '設定を保存しました'); }
-  else if (act === 'undo') { if (S.draft) undo(); }
+  else if (act === 'undo') { if (S.draft && !roGuard()) undo(); }
   else if (act === 'dismiss-lock') { lockDismissed = true; ls.set('roastlog.lockNote', 1); $('#lockNote').hidden = true; }
   else if (act === 'dismiss-ip') { ls.set('roastlog.ipNote', 1); renderHome(); }
 });

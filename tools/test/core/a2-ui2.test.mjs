@@ -39,16 +39,16 @@ test('自動検知の取り消し: トーストの「取り消す」で投入前
   const { ctx, page, errors } = await open({ clock: true, settings: SIM() });
   await startRoast(page);
   for (let i = 0; i < 100 && !(await page.evaluate(() => !!window.__roastlog.S.draft.startedAt)); i++) await page.clock.runFor(500);
-  assert.match(await page.textContent('.toast'), /投入を検知しました（\d+:\d\d 前）/);
+  assert.match(await page.textContent('#flowBanner'), /投入を検知しました（\d+:\d\d 前）/);
   // 取り消しは確認を出す。いったん「戻る」で何も消えないことを確かめ、やり直しも試す
-  assert.ok((await page.locator('.toast.top [data-toast-action]').boundingBox()).height >= 44, 'ボタンは44px以上');
-  await page.click('.toast [data-toast-action]');
+  assert.ok((await page.locator('#flowBanner [data-toast-action]').boundingBox()).height >= 44, 'ボタンは44px以上');
+  await page.click('#flowBanner [data-toast-action]');
   await page.click('.overlay [data-r="0"]');
   assert.equal(await page.evaluate(() => window.__roastlog.S.draft.status), 'roasting', '確認で戻ると消えない');
   await page.click('[data-action="undo"]'); await page.click('.overlay [data-r="0"]');
   assert.equal(await page.evaluate(() => window.__roastlog.S.draft.status), 'roasting', '「1つ前の操作を取り消す」も確認が出る');
   await page.click('[data-action="undo"]'); await page.click('.overlay [data-r="1"]');
-  await page.click('.toast [data-toast-action]'); // やり直す
+  await page.click('#flowBanner [data-toast-action]'); // やり直す
   assert.equal(await page.evaluate(() => window.__roastlog.S.draft.status), 'roasting', 'やり直すで戻る');
   assert.ok(await page.evaluate(() => window.__roastlog.S.draft.series.data.c1.length) > 30, '記録も戻る');
   await page.click('[data-action="undo"]'); await page.click('.overlay [data-r="1"]');
@@ -131,7 +131,7 @@ test('G1: 容量不足で保存に失敗すると、赤いトーストで知ら�
   const { ctx, page } = await open();
   await page.evaluate(() => { const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === 'roastlog.cache') throw new DOMException('full', 'QuotaExceededError'); return o.call(this, k, v); }; });
   await page.locator('[data-action="go"][data-to="settings"]:visible').first().click();
-  await page.locator('#pConn [data-action="save-settings"]').click();
+  await page.locator('[data-action="save-settings"]').click();
   await page.waitForSelector('.toast.err'); assert.match(await page.textContent('.toast.err'), /端末の容量がいっぱいです。書き出してください/);
   assert.equal(await page.locator('.toast:not(.err)').count(), 0);
   await ctx.close();

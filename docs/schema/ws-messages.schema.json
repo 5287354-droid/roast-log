@@ -30,8 +30,9 @@
     },
     "cfgBody": {
       "type": "object",
-      "required": ["channels", "amp", "rateHz"],
+      "required": ["channels", "amp", "rateHz", "rev"],
       "properties": {
+        "rev": { "type": "integer", "minimum": 0 },
         "channels": { "type": "array", "items": { "$ref": "#/$defs/channel" }, "minItems": 3, "maxItems": 3 },
         "amp": {
           "type": "object",
@@ -99,9 +100,10 @@
     },
     "cfg": {
       "type": "object",
-      "required": ["type", "channels", "amp", "rateHz"],
+      "required": ["type", "channels", "amp", "rateHz", "rev"],
       "properties": {
         "type": { "const": "cfg" },
+        "rev": { "type": "integer", "minimum": 0 },
         "channels": { "type": "array", "items": { "$ref": "#/$defs/channel" }, "minItems": 3, "maxItems": 3 },
         "amp": { "type": "object", "required": ["type", "mains", "avg"], "properties": { "type": { "type": "string" }, "mains": { "enum": [50, 60] }, "avg": { "enum": [1, 2, 4, 8, 16] } } },
         "rateHz": { "type": "integer", "minimum": 1 }
@@ -114,7 +116,8 @@
         "type": { "const": "ack" },
         "id": { "type": "string" },
         "ok": { "type": "boolean" },
-        "err": { "type": "string" }
+        "err": { "type": "string" },
+        "rev": { "type": "integer", "minimum": 0 }
       }
     },
     "pong": {
@@ -149,6 +152,7 @@
       "required": ["type", "id"],
       "properties": {
         "type": { "const": "setcfg" }, "id": { "type": "string" },
+        "baseRev": { "type": "integer", "minimum": 0 },
         "channels": {
           "type": "array",
           "items": {

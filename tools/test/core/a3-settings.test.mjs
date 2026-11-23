@@ -157,7 +157,7 @@ test('段階帯: 黄色化なしは BT 150℃ 到達を推定で薄く表示 →
   await page.click('#sType [data-v="tenami"]');
   assert.equal(await page.evaluate(() => document.querySelector('#sRorAuto .on').dataset.v), '60');
   await page.check('#sShowEt'); await page.fill('#sDryTemp', '120');
-  await page.locator('#pAuto [data-action="save-settings"]').click();
+  await page.locator('[data-action="save-settings"]').click();
   await go(page, 'home'); await page.click('[data-action="new-roast"]');
   await page.fill('#suBeanName', '手網 ESP32'); await page.fill('#suGreen', '100');
   await waitFor(() => page.evaluate(() => !!window.__roastlog.Sources.active.info), 'hello'); await sleep(2500);

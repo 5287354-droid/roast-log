@@ -20,7 +20,7 @@ const FW = '0.0.0-sim';
 export function parseArgs(argv) {
   const a = {
     port: 8787, host: '0.0.0.0', speed: 1, profile: 'drum', seed: 1, chargeAt: 40, noise: 0.3, outlierP: undefined,
-    disconnect: [], fault: [], rebootAt: [], quiet: false,
+    disconnect: [], fault: [], rebootAt: [], quiet: false, bfDelay: 0, roomTemp: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
@@ -40,6 +40,8 @@ export function parseArgs(argv) {
       a.fault.push({ ch: +m[1] - 1, kind: m[2], from: +m[3], to: +m[4] });
     }
     else if (k === '--reboot-at') a.rebootAt.push(+val());
+    else if (k === '--bf-delay') a.bfDelay = +val();         // 試験用: hi のあとの bf を、実時間でこのミリ秒だけ遅らせる（s が bf より先に届く順番を作る。9.5 では本来 hello → bf → s）
+    else if (k === '--room-temp') a.roomTemp = +val();        // 試験用: 全チャンネルが室温のまま（焙煎していない）。センサー診断の試験に使う
     else if (k === '--quiet') a.quiet = true;
     else if (k === '--help' || k === '-h') { a.help = true; }
     else throw new Error('不明な引数: ' + k);
@@ -72,6 +74,7 @@ export function startServer(opts = {}) {
   let lastCfgMsg = null;
   const deviceId = 'a4cf' + (Math.floor(Math.random() * 256)).toString(16).padStart(2, '0');
   let cfg = DEFAULT_CFG();
+  let rev = 1;                        // 設定の版番号（9.5）。設定が変わるたびに +1
   let bootId = hex8();
   let seq = 0;                        // 最新サンプルの seq（最初のサンプルが 1）
   let kBase = null;                   // 起動後の最初のサンプルのモデル秒（truth を seq の数え方に直す）
@@ -98,13 +101,14 @@ export function startServer(opts = {}) {
       for (const ft of faults) {
         if (ft.ch === i && virtualSec >= ft.from && virtualSec <= ft.to) { v = null; f = { open: 1, gnd: 2, vcc: 3, ovuv: 4, range: 5, cj: 6, nodev: 7, stale: 8 }[ft.kind] || 1; }
       }
+      if (o.roomTemp != null && v != null) v = o.roomTemp + 0.05 * Math.sin(virtualSec * 1.7 + i) + 0.04 * Math.cos(virtualSec * 0.9 * (i + 1)); // 室温のまま（わずかに揺れる）
       if (!c.enabled) { vv[i] = null; ff[i] = 0; continue; }
       if (v != null) for (const p of pinches) if (p.ch === i && virtualSec >= p.from && virtualSec <= p.to + 3) { const x = Math.min(1, (virtualSec - p.from + 1) / 4), y = virtualSec > p.to ? Math.max(0, 1 - (virtualSec - p.to) / 3) : 1; v += p.delta * x * y; }
       vv[i] = v == null ? null : Math.round((v + c.offset) * 10);
       ff[i] = f;
     }
     seq++;
-    const e = { seq, ms: msOf(seq), v: vv, f: ff, cj: Math.round(s.cj * 10) };
+    const e = { seq, ms: msOf(seq), v: vv, f: ff, cj: Math.round((o.roomTemp != null ? o.roomTemp + 2.3 : s.cj) * 10) };
     ring[seq % RING] = e;
     return e;
   }
@@ -117,7 +121,7 @@ export function startServer(opts = {}) {
     return {
       type: 'hello', proto: 1, fw: FW, model: 'RL-SIM', amp: 'sim', id: deviceId, bootId,
       ms: msOf(seq), seq, bufFrom: bufFrom(), rateHz: 1, chMax: 3, speed,
-      cfg: structuredClone(cfg),
+      cfg: { ...structuredClone(cfg), rev },
     };
   }
   function sMsg(e) { return { type: 's', seq: e.seq, ms: e.ms, v: e.v, f: e.f, cj: e.cj }; }
@@ -141,8 +145,11 @@ export function startServer(opts = {}) {
     return { type: 'st', rssi: -55, mode: 'sta', ip: '127.0.0.1', heap: 182344, uptime: virtualSec, clients: clients.size };
   }
 
+  let staleRev = null;
   function applyCfg(m) {
-    // 部分更新可。不正なら ok:false（何も変更しない）
+    // 部分更新可。不正なら ok:false（何も変更しない）。baseRev が今の rev と違えば 'stale'（9.5）
+    staleRev = null;
+    if (m.baseRev !== undefined && m.baseRev !== rev) { staleRev = rev; return 'stale'; }
     const next = structuredClone(cfg);
     if (m.channels !== undefined) {
       if (!Array.isArray(m.channels)) return 'bad_value';
@@ -162,7 +169,7 @@ export function startServer(opts = {}) {
       if (a.mains !== undefined) { if (a.mains !== 50 && a.mains !== 60) return 'bad_value'; next.amp.mains = a.mains; }
       if (a.avg !== undefined) { if (![1, 2, 4, 8, 16].includes(a.avg)) return 'bad_value'; next.amp.avg = a.avg; }
     }
-    cfg = next;
+    cfg = next; rev++;
     return null;
   }
 
@@ -170,28 +177,29 @@ export function startServer(opts = {}) {
     let m;
     try { m = JSON.parse(raw.toString()); } catch { return; }
     if (!m || typeof m.type !== 'string') return;
-    const ack = (ok, err) => { if (m.id !== undefined) sendTo(c.ws, ok ? { type: 'ack', id: m.id, ok: true } : { type: 'ack', id: m.id, ok: false, err }); };
+    const ack = (ok, err, extra) => { if (m.id !== undefined) sendTo(c.ws, ok ? { type: 'ack', id: m.id, ok: true, ...(extra || {}) } : { type: 'ack', id: m.id, ok: false, err, ...(extra || {}) }); };
     switch (m.type) {
       case 'hi': {
         clearTimeout(c.helloTimer);
+        // 9.5: 接続ごとに hello → 必要な bf をすべて → s の順。bf が終わるまで s は送らない（c.ready は bf のあと）
         sendTo(c.ws, helloMsg());
-        c.ready = true;
-        // 同じ bootId で lastSeq があれば自動バックフィル
-        if (m.bootId === bootId && Number.isInteger(m.lastSeq) && m.lastSeq >= 0 && m.lastSeq < seq) {
-          for (const f of bfMsgs(m.lastSeq + 1, seq)) sendTo(c.ws, f);
-        }
+        let frames = [];
+        if (m.bootId === bootId && Number.isInteger(m.lastSeq) && m.lastSeq >= 0 && m.lastSeq < seq) frames = bfMsgs(m.lastSeq + 1, seq);   // 同じ起動の続き
+        // 起動が変わった（bootId が違う）ときは bf を送らない。アプリが hello を見て bf_req で新しい起動の分を求める（その間に s が先に届く）
+        if (o.bfDelay > 0 && frames.length) { c.ready = true; setTimeout(() => { for (const f of frames) sendTo(c.ws, f); }, o.bfDelay); }   // 試験用: 順番を入れ替える（s が先）
+        else { for (const f of frames) sendTo(c.ws, f); c.ready = true; }
         break;
       }
       case 'bf_req': {
         if (!Number.isInteger(m.from) || !Number.isInteger(m.to)) { ack(false, 'bad_range'); break; }
-        for (const f of bfMsgs(m.from, m.to)) sendTo(c.ws, f);
+        { const fr = bfMsgs(m.from, m.to); if (o.bfDelay > 0) setTimeout(() => { for (const f of fr) sendTo(c.ws, f); }, o.bfDelay); else for (const f of fr) sendTo(c.ws, f); }
         break;
       }
       case 'ping': sendTo(c.ws, { type: 'pong', id: m.id, t: Number.isFinite(m.t) ? m.t : 0, ms: msOf(seq) }); break;
       case 'setcfg': {
         lastCfgMsg = m;
         const err = applyCfg(m);
-        ack(!err, err);
+        ack(!err, err, err === 'stale' ? { rev: staleRev } : { rev });
         if (!err) broadcast(cfgMsg());
         break;
       }
@@ -199,7 +207,7 @@ export function startServer(opts = {}) {
       default: ack(false, 'unknown_type');
     }
   }
-  const cfgMsg = () => ({ type: 'cfg', ...structuredClone(cfg) });
+  const cfgMsg = () => ({ type: 'cfg', ...structuredClone(cfg), rev });
 
   // ---------- HTTP ----------
   const appFile = () => {
@@ -339,7 +347,7 @@ if (isMain) {
   let args;
   try { args = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); process.exit(2); }
   if (args.help) {
-    console.log('使い方: node tools/sim/server.mjs [--port 8787] [--speed 1] [--profile drum|tenami] [--seed 1] [--charge-at 40|none]\n  [--noise 0.3] [--outlier-p 0] [--disconnect 300:20] [--fault c2:open@400-420] [--reboot-at 500] [--quiet]');
+    console.log('使い方: node tools/sim/server.mjs [--port 8787] [--speed 1] [--profile drum|tenami] [--seed 1] [--charge-at 40|none]\n  [--noise 0.3] [--outlier-p 0] [--disconnect 300:20] [--fault c2:open@400-420] [--reboot-at 500] [--bf-delay 800] [--room-temp 22] [--quiet]');
     process.exit(0);
   }
   startServer(args).catch(e => { console.error(e.message); process.exit(1); });

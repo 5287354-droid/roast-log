@@ -61,7 +61,7 @@ test('E2E-3: ESP32 から配信 → 2ch 表示 → 切断で欠損 0 → 断線�
   await sleep(1500);
   await srv.api('/api/sim/charge');
   await waitFor(async () => (await D(page)).sa != null, '自動投入', 30000);
-  assert.match(await page.textContent('.toast'), /投入を検知しました/);
+  assert.match(await page.textContent('#flowBanner'), /投入を検知しました/);
   // 9.4: 焙煎の時計は機器の ms。×20 でもサーバーの seq とずれない
   const sync = async () => { const d = await D(page), tr = await srv.api('/api/sim/truth'); return { lastT: d.lastT, expect: tr.seq - tr.chargeT, seq: tr.seq, chargeT: tr.chargeT }; };
   await waitFor(async () => (await D(page)).lastT > 40, 't>40');
@@ -72,7 +72,7 @@ test('E2E-3: ESP32 から配信 → 2ch 表示 → 切断で欠損 0 → 断線�
   await waitFor(async () => (await srv.api('/api/sim/state')).virtualSec > 190, '切断のあと', 40000);
   await waitFor(async () => (await page.textContent('#connRow')).includes('受信中'), '再接続', 20000);
   await waitFor(async () => (await D(page)).lastT > (await sync()).expect - 8, 'バックフィルで追いつく', 20000);
-  { const d = await D(page); const from = 8 - d.start; // 投入直後の数秒は、外れ値除去（despike）が保留した null が入る
+  { const d = await D(page); const from = Math.max(d.c1.findIndex(x => x != null), d.c2.findIndex(x => x != null)); // 最初の値が来た秒から。投入直後も除外せず、本当の欠損を数える
     const nulls = d.c1.slice(from, d.lastT - d.start - 1).filter(x => x == null).length + d.c2.slice(from, d.lastT - d.start - 1).filter(x => x == null).length;
     assert.equal(nulls, 0, '切断のあとも欠損 0（バックフィル）: ' + JSON.stringify([d.c1, d.c2].map(a => a.map((x, i) => x == null ? i + d.start : null).filter(x => x != null)))); assert.deepEqual(d.gaps, [], 'gaps なし'); }
   assert.ok(await page.evaluate(() => window.__roastlog.S.live.m.gaps.length === 0));
@@ -92,8 +92,9 @@ test('E2E-3: ESP32 から配信 → 2ch 表示 → 切断で欠損 0 → 断線�
   await waitFor(async () => (await D(page)).lastT > (await sync()).expect - 8, 'バックフィル（長い切断）', 20000);
   { const d = await D(page), end = d.lastT - d.start - 1;
     // c2 は故障の区間だけ null（260-280 の仮想秒）。c1 は欠損 0
-    assert.equal(d.c1.slice(8 - d.start, end).filter(x => x == null).length, 0, 'c1 欠損 0');
-    const n2 = d.c2.slice(8 - d.start, end).filter(x => x == null).length; assert.ok(n2 >= 15 && n2 <= 25, `c2 の null は故障の ~21 秒だけ: ${n2}`);
+    const f1 = d.c1.findIndex(x => x != null), f2 = d.c2.findIndex(x => x != null);
+    assert.equal(d.c1.slice(f1, end).filter(x => x == null).length, 0, 'c1 欠損 0（投入直後も除外しない）');
+    const n2 = d.c2.slice(f2, end).filter(x => x == null).length; assert.ok(n2 >= 15 && n2 <= 25, `c2 の null は故障の ~21 秒だけ: ${n2}`);
     assert.deepEqual(d.gaps, []); const s = await sync(); assert.ok(Math.abs(d.lastT - s.expect) <= 8, `時刻 ${d.lastT}/${s.expect}`); }
   // 1ハゼ（手動）→ 排出の案内（温度が急に下がる）。投入をもう一度して BT を落とす
   await page.click('[data-ev="fc1"]');
