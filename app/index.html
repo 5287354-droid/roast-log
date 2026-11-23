@@ -236,6 +236,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
 </style>
 
 <div class="app" id="app">
+  <div id="sysBar" class="stack"></div>
   <!-- HOME -->
   <section data-view="home" class="stack">
     <div class="topbar">
@@ -1002,7 +1003,8 @@ const DEFAULTS = {
 };
 const DRAFT_KEY = 'roastlog.draft';
 const CACHE_KEY = 'roastlog.cache';
-const PENDING_KEY = 'roastlog.pending';
+const PENDING_KEY = 'roastlog.pending';          // 送信待ち。この版が積むものには v:2 の印が付く（印の無いものは前の版 v1 が残したもの）
+const BAK_KEY = 'roastlog.pending.v1bak';        // 印の無い送信待ちを、端末の記録ごと退避したもの。自動では送らない
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -1013,10 +1015,18 @@ const fmt = sec => { if (sec == null || !Number.isFinite(sec)) return '—'; con
 const parseTime = str => { const m = String(str || '').trim().match(/^(\d+):(\d{1,2})$/); if (m) return (+m[1]) * 60 + (+m[2]); const n = num(str); return n == null ? null : n; };
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const fmtDate = ms => { const d = new Date(ms); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+// localStorage が使えるか、起動時に一度だけ調べる（sandbox では取り出すだけで例外になる）。容量いっぱい（quota）は「使える」に数える
+const lsOK = (() => {
+  try { localStorage.getItem('roastlog.probe'); }
+  catch { return false; }
+  try { localStorage.setItem('roastlog.probe', '1'); localStorage.removeItem('roastlog.probe'); }
+  catch (e) { if (!(e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014))) return false; }
+  return true;
+})();
 const ls = {
-  get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
-  del(k) { try { localStorage.removeItem(k); } catch {} },
+  get(k) { if (!lsOK) return null; try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
+  set(k, v) { if (!lsOK) return false; try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+  del(k) { if (!lsOK) return; try { localStorage.removeItem(k); } catch {} },
 };
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), ms))]);
 const clean = o => JSON.parse(JSON.stringify(o)); // drops undefined
@@ -1072,15 +1082,27 @@ const Store = {
         settings: st.exists ? st.data() : null,
       };
       this.noticeSeen = !!(nt && nt.exists);
-      // keep local-only items that are still waiting to upload
-      const pend = ls.get(PENDING_KEY) || [];
-      pend.forEach(p => {
+      // 送信待ちのうち、この版が積んだもの（v:2）だけを db の記録の上に戻す。印の無いもの（前の版 v1 の残り）は、端末の記録ごと退避して、自動では送らない
+      const pend = (ls.get(PENDING_KEY) || []).filter(p => p && typeof p === 'object');
+      const mine = pend.filter(p => p.v === 2), old = pend.filter(p => p.v !== 2);
+      let keepCache = true;
+      if (old.length) {
+        const bak = (ls.get(BAK_KEY) || []).filter(b => !old.some(p => p.col === b.col && p.id === b.id));
+        old.forEach(p => {
+          if (p.op === 'delete') { bak.push({ col: p.col, id: p.id, op: 'delete', local: null, at: Date.now() }); return; }
+          const local = p.col === 'roasts' ? (cache.roasts || []).find(x => x.id === p.id) : p.col === 'beans' ? (cache.beans || []).find(x => x.id === p.id) : p.col === 'config' ? cache.settings : null;
+          if (local) bak.push({ col: p.col, id: p.id, op: 'set', local: clean(local), at: Date.now() });
+        });
+        if (ls.set(BAK_KEY, bak)) ls.set(PENDING_KEY, mine); else keepCache = false;   // 退避できなかったら、端末の記録を消さないよう端末の控えは作り直さない
+      }
+      mine.forEach(p => {
         if (p.op !== 'set') return;
+        if (p.col === 'config') { if (cache.settings) data.settings = cache.settings; return; }
         const list = p.col === 'roasts' ? data.roasts : p.col === 'beans' ? data.beans : null;
-        const local = (p.col === 'roasts' ? cache.roasts : cache.beans).find(x => x.id === p.id);
+        const local = list && ((p.col === 'roasts' ? cache.roasts : cache.beans) || []).find(x => x.id === p.id);
         if (list && local) { const i = list.findIndex(x => x.id === p.id); if (i >= 0) list[i] = local; else list.push(local); }
       });
-      ls.set(CACHE_KEY, data);
+      if (keepCache) ls.set(CACHE_KEY, data);
       return { ...data, from: 'cloud' };
     } catch {
       return { ...cache, from: 'cache' };
@@ -1090,26 +1112,32 @@ const Store = {
   writeCache() { return ls.set(CACHE_KEY, { roasts: S.roasts, beans: S.beans, settings: S.settings }); },
   path(col, id) { return col === 'config' ? 'config/app' : col + '/' + id; },
   // 戻り値: 保存できたら true。端末の容量不足は lastErr='quota'（赤いトーストを出す）、通信失敗は lastErr='net'
+  // claude.ai 保存のモードで db から読めていない間は、書かない（読めていない記録・設定を、端末の古い・初期の中身で上書きしてしまうため）
+  readOnly() { return this.mode === 'cloud' && S.loadFrom !== 'cloud'; },
   async put(col, id, obj) {
     this.lastErr = null;
-    if (!this.writeCache()) { this.lastErr = 'quota'; quotaToast(); if (this.mode !== 'cloud') return false; }
-    if (this.mode !== 'cloud') return true;
+    if (this.readOnly()) { this.lastErr = 'noload'; return false; }
+    const cacheOk = this.writeCache();
+    if (!cacheOk && lsOK) { this.lastErr = 'quota'; quotaToast(); if (this.mode !== 'cloud') return false; }   // 使えない（lsOK=false）のは容量不足ではない
+    const key = col + '/' + id;
+    if (this.mode !== 'cloud') { if (!cacheOk) { this.lastErr = 'nowhere'; S.unsaved.add(key); renderSys(); return false; } return true; }
     const body = clean(obj);
-    if (byteLen(body) > DB_LIMIT) { this.unqueue(col, id); this.lastErr = 'size'; return false; }   // 262,144 バイトを超える文書は db が受け付けない。待たせても通らないので、送信待ちにはしない
-    try { await withTimeout(this.db.doc(this.path(col, id)).set(body), 10000); this.unqueue(col, id); return this.lastErr !== 'quota'; }
-    catch { this.queue(col, id, 'set'); if (!this.lastErr) this.lastErr = 'net'; return false; }
+    if (byteLen(body) > DB_LIMIT) { this.unqueue(col, id); this.lastErr = 'size'; if (!cacheOk) S.unsaved.add(key); renderSys(); return false; }   // 262,144 バイトを超える文書は db が受け付けない。待たせても通らないので、送信待ちにはしない
+    try { await withTimeout(this.db.doc(this.path(col, id)).set(body), 10000); this.unqueue(col, id); S.unsaved.delete(key); renderSys(); return this.lastErr !== 'quota'; }
+    catch { this.queue(col, id, 'set'); if (!cacheOk) { this.lastErr = 'nowhere'; S.unsaved.add(key); renderSys(); } else if (!this.lastErr) this.lastErr = 'net'; return false; }
   },
   async remove(col, id) {
+    if (this.readOnly()) { this.lastErr = 'noload'; return false; }
     this.writeCache();
     if (this.mode !== 'cloud') return true;
     try { await withTimeout(this.db.doc(this.path(col, id)).delete(), 10000); this.unqueue(col, id); return true; }
     catch { this.queue(col, id, 'delete'); return false; }
   },
-  queue(col, id, op) { const p = (ls.get(PENDING_KEY) || []).filter(x => !(x.col === col && x.id === id)); p.push({ col, id, op }); ls.set(PENDING_KEY, p); },
+  queue(col, id, op) { const p = (ls.get(PENDING_KEY) || []).filter(x => !(x.col === col && x.id === id)); p.push({ col, id, op, v: 2 }); ls.set(PENDING_KEY, p); },
   unqueue(col, id) { const p = (ls.get(PENDING_KEY) || []).filter(x => !(x.col === col && x.id === id)); ls.set(PENDING_KEY, p); },
   async flush() {
-    if (this.mode !== 'cloud') return;
-    const p = ls.get(PENDING_KEY) || []; let sent = 0, failed = 0;
+    if (this.mode !== 'cloud' || this.readOnly()) return;
+    const p = (ls.get(PENDING_KEY) || []).filter(x => x && x.v === 2); let sent = 0, failed = 0;   // 印の無いもの（v1 の残り）は送らない
     for (const it of p) {
       if (it.op === 'delete') { if (await this.remove(it.col, it.id)) sent++; else failed++; continue; }
       const obj = it.col === 'roasts' ? S.roasts.find(x => x.id === it.id) : it.col === 'beans' ? S.beans.find(x => x.id === it.id) : S.settings;
@@ -1122,7 +1150,7 @@ const Store = {
 
 /* ---------- state ---------- */
 const mergeSettings = saved => { const o = { ...DEFAULTS, ...(saved || {}) }; o.sim = { ...DEFAULTS.sim, ...((saved && saved.sim) || {}) }; o.conn = { ...DEFAULTS.conn, ...((saved && saved.conn) || {}) }; return o; };
-const S = { roasts: [], beans: [], settings: { ...DEFAULTS }, live: null, device: null, view: 'home', draft: null, detailId: null, loaded: false, editBeanId: null };
+const S = { roasts: [], beans: [], settings: { ...DEFAULTS }, live: null, device: null, view: 'home', draft: null, detailId: null, loaded: false, editBeanId: null, unsaved: new Set(), loadFrom: null };
 const settings = () => S.settings;
 
 /* ---------- 接続層 Sources（SPEC 5.0）: 手入力 / シミュレーター / ESP32（A3）。どれも同じ形 ---------- */
@@ -1665,8 +1693,13 @@ function toast(msg, o) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), o.ms || 2600);
 }
+function noloadToast() { toast('読み込めるまで保存できません。書き出しは使えます', { err: true, ms: 5000 }); }
+// 保存してよい状態か。claude.ai から読めていない間は断る（読めていない本物の記録・設定を、端末の中身で上書きしないため）
+function canSave() { if (Store.readOnly()) { noloadToast(); return false; } return true; }
 function savedToast(ok, msg) {
   if (ok) toast(msg);
+  else if (Store.lastErr === 'noload') noloadToast();
+  else if (Store.lastErr === 'nowhere') { if (!S.nowhereToasted) { S.nowhereToasted = true; toast('この記録はまだどこにも保存されていません。書き出してください', { err: true, ms: 6000 }); } }   // 2 回目からは画面上のバナーだけ
   else if (Store.lastErr === 'size') toast('この記録は大きすぎて claude.ai に保存できませんでした。「全データを書き出す」で書き出してください', { err: true, ms: 7000 });
   else if (Store.lastErr !== 'quota') toast('claude.ai に送れませんでした。この端末には保存しました。通信が戻ったら自動で送ります', { err: true, ms: 5000 });
 }
@@ -1873,6 +1906,7 @@ function sparkline(r) {
 /* ---------- HOME ---------- */
 function storageBytes() { try { return (localStorage.getItem(CACHE_KEY) || '').length; } catch { return 0; } }
 function renderHome() {
+  renderSys();
   const chip = $('#modeChip');
   const sid = curSourceId(), host = S.device && (S.device.host || 'roast.local');
   const conn = sid === 'sim' ? 'シミュレーター' : S.device ? `ESP32 ${host}` : '手入力';
@@ -1889,6 +1923,7 @@ function renderHome() {
   // お知らせ: 容量（4MB 超）、IP アドレスでのアクセス（記録がアドレスごとに別になる）
   const notes = [];
   if (storageBytes() > 4000000) notes.push(`<div class="banner"><div><b>保存の容量がいっぱいに近づいています</b><div class="small">この端末の保存は約 5MB までです。「全データを書き出す」で書き出してください。</div></div><button class="btn primary" data-action="go" data-to="settings">書き出しへ</button></div>`);
+  if (Store.mode === 'cloud' && S.loadFrom === 'cloud') { const n = legacyList().length; if (n) notes.push(`<div class="banner" id="legacyNote"><div><b>前の版で送れなかった変更が ${n} 件あります</b><div class="small">自動では送っていません。内容を見て、送るか捨てるかを選んでください。</div></div><div class="row"><button class="btn ghost" data-action="legacy-view">内容を見る</button><button class="btn primary" data-action="legacy-send">送る</button><button class="btn ghost" data-action="legacy-discard">捨てる</button></div></div>`); }
   if (S.migrateNotice) notes.push(`<div class="banner" id="migrateNote"><div><b>新しい版になりました</b><div class="small">念のため、全データを書き出しておくことをおすすめします。いまの記録はそのまま読めます。</div></div><div class="row"><button class="btn primary" data-action="migrate-export">書き出す</button><button class="btn ghost" data-action="migrate-dismiss">閉じる</button></div></div>`);
   if (/^\d+\.\d+\.\d+\.\d+/.test(location.hostname) && !ls.get('roastlog.ipNote')) notes.push(`<div class="banner"><div class="small">アドレスが違うと記録は別々に保存されます。普段は http://roast.local を使ってください。</div><button class="btn ghost" data-action="dismiss-ip">わかった</button></div>`);
   $('#noteBox').innerHTML = notes.join('');
@@ -1924,7 +1959,7 @@ function renderSetup() {
   const st = settings(), k = ctlKinds(st.roasterType), lb = ctlLabels(st, k);
   const last = S.roasts.slice().sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))[0];
   const li = last && last.initial || {};
-  $('#suBean').innerHTML = '<option value="__new">新しい豆を入力する</option>' + S.beans.slice().sort((a, b) => a.name.localeCompare(b.name, 'ja')).map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
+  $('#suBean').innerHTML = '<option value="__new">新しい豆を入力する</option>' + S.beans.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ja')).map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
   if (last && last.beanId && S.beans.some(b => b.id === last.beanId)) $('#suBean').value = last.beanId;
   $('#suNewBean').hidden = $('#suBean').value !== '__new';
   $('#suDegree').innerHTML = opts(DEGREES, last?.degree || '中煎り');
@@ -2064,7 +2099,93 @@ window.addEventListener('storage', e => {
   else if (e.key === CACHE_KEY && Store.mode !== 'cloud') { const c = ls.get(CACHE_KEY); if (c) { S.roasts = c.roasts || []; S.beans = c.beans || []; if (S.view === 'home') renderHome(); } }   // 別のタブで保存された記録を取り込む（上書きして消さないため）
 });
 let quotaAt = 0;
-function quotaToast() { if (Date.now() - quotaAt > 20000) { quotaAt = Date.now(); toast('端末の容量がいっぱいです。書き出してください', { err: true, ms: 6000 }); } }
+function quotaToast() {
+  if (!lsOK) { if (!S.noLsDraft) { S.noLsDraft = true; renderSys(); } return; }   // この端末では保存できない sandbox。容量不足ではない
+  if (!S.quotaToasted) { S.quotaToasted = true; quotaAt = Date.now(); toast('端末の容量がいっぱいです。書き出してください', { err: true, ms: 6000 }); }
+  else { S.quotaBar = true; renderSys(); }   // 2 回目からはバナー（焙煎中に赤いトーストを繰り返さない）
+}
+
+/* ---------- 画面上部の常時バナー（読み込めていない・どこにも保存されていない） ---------- */
+function renderSys() {
+  const el = document.getElementById('sysBar'); if (!el) return;
+  const h = [];
+  if (Store.readOnly() && S.loaded) h.push(`<div class="banner" id="noloadNote" role="alert"><div><b>claude.ai から読み込めていません</b><div class="small">読み込めるまで、設定や記録は保存できません（書き出しは使えます）。</div></div><button class="btn primary" data-action="noload-reload">再読み込み</button></div>`);
+  if (S.unsaved.size) h.push(`<div class="banner" id="unsavedNote" role="alert"><div><b>この記録はまだどこにも保存されていません。書き出してください</b></div><button class="btn primary" data-action="unsaved-export">書き出す</button></div>`);
+  if (S.noLsDraft) h.push(`<div class="banner" id="noLsNote"><div class="small">この画面では、焙煎中の下書きを端末に残せません。ページを閉じたり再読み込みすると、途中の記録は消えます。</div></div>`);
+  if (S.quotaBar) h.push(`<div class="banner" id="quotaNote" role="alert"><div class="small"><b>端末の容量がいっぱいです。</b>書き出してください。</div></div>`);
+  const html = h.join(''); if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; }
+}
+async function reloadFromCloud() {
+  if (Store.mode !== 'cloud') return;
+  const data = await Store.loadAll();
+  if (data.from !== 'cloud') { toast('まだ読み込めません。通信を確かめてください', { err: true }); return; }
+  S.roasts = data.roasts || []; S.beans = data.beans || []; S.settings = mergeSettings(data.settings); S.loadFrom = 'cloud'; S.loaded = true;
+  renderSys();
+  if (S.view === 'home') renderHome(); else if (S.view === 'beans') renderBeans(); else if (S.view === 'settings') renderSettings(); else if (S.view === 'detail') { if (curRoast()) renderDetail(); else show('home'); }
+  toast('claude.ai から読み込みました'); Store.flush();
+}
+
+/* ---------- 前の版（v1）が残した送信待ち: 自動では送らない。内容を見せて、送る・捨てるを選ばせる ---------- */
+const legacyList = () => (ls.get(BAK_KEY) || []).filter(e => e && e.col && e.id);
+const memoHead = r => String((r && (r.memo || (r.tasting && r.tasting.memo))) || '').replace(/\s+/g, ' ').slice(0, 24);
+function legacySide(col, r, op) {
+  if (op === 'delete') return '（削除）';
+  if (!r) return '（なし）';
+  if (col === 'roasts') return `${r.beanName || '豆の名前なし'}・${r.startedAt ? fmtDate(r.startedAt) : '日時なし'}・メモ: ${memoHead(r) || '（なし）'}`;
+  if (col === 'beans') return `${r.name || '名前なし'}・${[r.origin, r.process].filter(Boolean).join(' ') || '産地なし'}`;
+  return '設定';
+}
+function legacyDbRec(e) {
+  if (e.col === 'roasts') return S.roasts.find(x => x.id === e.id) || null;
+  if (e.col === 'beans') return S.beans.find(x => x.id === e.id) || null;
+  return S.settings;
+}
+function legacyDiffKeys(e) { const a = e.local || {}, b = S.settings || {}; return Object.keys(a).filter(k => JSON.stringify(a[k]) !== JSON.stringify(b[k])).slice(0, 6); }
+function legacyHtml(list, confirmMode) {
+  const kind = { roasts: '焙煎の記録', beans: '豆', config: '設定' };
+  const items = list.map(e => {
+    const db = legacyDbRec(e);
+    const dbTxt = e.col === 'config' ? '今の設定' : legacySide(e.col, db);
+    const lc = e.op === 'delete' ? '（この記録を削除する）' : e.col === 'config' ? `変わる項目: ${legacyDiffKeys(e).join('、') || 'なし'}` : legacySide(e.col, e.local);
+    return `<div class="lg-item"><b>${kind[e.col] || e.col}${e.op === 'delete' ? '（削除）' : ''}</b><div class="small">claude.ai の今: ${esc(dbTxt)}</div><div class="small">この端末: ${esc(lc)}</div></div>`;
+  }).join('');
+  return `<div class="sheet" role="dialog" aria-modal="true" style="max-height:85vh;overflow:auto"><p>前の版で送れなかった変更が ${list.length} 件あります</p><div class="small">${confirmMode ? '送ると、claude.ai の今の中身は下の「この端末」の内容で置き換わります（削除は実際に削除されます）。' : '「送る」と claude.ai の記録が端末の内容で置き換わります。「捨てる」と端末の内容は消えて、claude.ai の記録がそのまま残ります。'}</div>${items}<div class="grid2">${confirmMode ? '<button class="btn ghost" data-action="legacy-close">戻る</button>' : '<button class="btn ghost" data-action="legacy-discard">捨てる</button>'}<button class="btn primary" data-action="legacy-send-now">送る</button></div>${confirmMode ? '' : '<button class="btn ghost" data-action="legacy-close">閉じる</button>'}</div>`;
+}
+function legacyOpen(confirmMode) {
+  const list = legacyList(); if (!list.length) return;
+  document.getElementById('legacyReview')?.remove();
+  const o = document.createElement('div'); o.className = 'overlay'; o.id = 'legacyReview'; o.innerHTML = legacyHtml(list, confirmMode); document.body.appendChild(o);
+}
+async function legacySend() {
+  document.getElementById('legacyReview')?.remove();
+  if (!canSave()) return;
+  const rest = []; let ok = 0;
+  for (const e of legacyList()) {
+    try {
+      const path = Store.path(e.col, e.id);
+      if (e.op === 'delete') { await withTimeout(Store.db.doc(path).delete(), 10000); if (e.col === 'roasts') S.roasts = S.roasts.filter(x => x.id !== e.id); else if (e.col === 'beans') S.beans = S.beans.filter(x => x.id !== e.id); }
+      else {
+        const rec = clean(e.local); if (e.col === 'roasts') fitCloud(rec);
+        if (byteLen(rec) > DB_LIMIT) throw 0;
+        await withTimeout(Store.db.doc(path).set(rec), 10000);
+        if (e.col === 'roasts') { S.roasts = S.roasts.filter(x => x.id !== e.id); S.roasts.push(rec); }
+        else if (e.col === 'beans') { S.beans = S.beans.filter(x => x.id !== e.id); S.beans.push(rec); }
+        else S.settings = mergeSettings(rec);
+      }
+      ok++;
+    } catch { rest.push(e); }
+  }
+  if (rest.length) ls.set(BAK_KEY, rest); else ls.del(BAK_KEY);
+  Store.writeCache();
+  toast(rest.length ? `${ok} 件を送りました。${rest.length} 件は送れませんでした（あとでもう一度できます）` : `前の版の変更 ${ok} 件を claude.ai に送りました`, rest.length ? { err: true, ms: 6000 } : undefined);
+  if (S.view === 'home') renderHome();
+}
+async function legacyDiscard() {
+  document.getElementById('legacyReview')?.remove();
+  const n = legacyList().length; if (!n) return;
+  if (!await confirmSheet(`前の版で送れなかった変更 ${n} 件を捨てますか？claude.ai にある記録はそのまま残ります。`, '捨てる', true)) return;
+  ls.del(BAK_KEY); toast('捨てました'); if (S.view === 'home') renderHome();
+}
 
 function renderRoast() {
   const d = S.draft; if (!d) return show('home');
@@ -2460,6 +2581,7 @@ function updateLoss() {
   $('#fLoss').textContent = g && r ? r1((g - r) / g * 100) + '%' : (g ? '—' : '生豆の重さが未入力');
 }
 async function saveFinish() {
+  if (!canSave()) return;   // 焙煎の記録は、下書きのまま端末に残す
   const d = S.draft;
   d.roastedWeight = num($('#fRoasted').value); d.degree = $('#fDegree').value; d.memo = $('#fMemo').value.trim();
   const roast = fitCloud(toRecord(d));
@@ -2503,7 +2625,7 @@ function fitCloud(rec) {
   if (Store.mode !== 'cloud' || !rec || !rec.series) return rec;
   if (byteLen(rec) <= FIT_AT) return rec;
   const orig = rec.series;
-  for (let f = 2; f <= 64; f *= 2) { rec.series = RoastCore.decimate(orig, f); if (byteLen(rec) <= FIT_AT) break; }
+  for (let f = 2; f <= 64; f *= 2) { rec.series = RoastCore.decimate(orig, f, rec.dropTime); if (byteLen(rec) <= FIT_AT) break; }
   return rec;
 }
 function cloudFits(rec) { return Store.mode !== 'cloud' || byteLen(rec) <= FIT_MAX; }
@@ -2565,14 +2687,17 @@ async function saveTasting() {
   const r = curRoast(); if (!r) return;
   const t = { done: true, memo: $('#tMemo').value.trim(), pairing: $('#tPair').value.trim(), at: Date.now() };
   SCALES.forEach(([k]) => { t[k] = +$('#sc_' + k).value; });
-  const prev = { tasting: r.tasting, savedAt: r.savedAt };
+  if (!canSave()) return;
+  const prev = { tasting: r.tasting, savedAt: r.savedAt, series: r.series, schema: r.schema };
   r.tasting = t; r.savedAt = Date.now(); upgradeV2(r); fitCloud(r);
-  if (!cloudFits(r)) { r.tasting = prev.tasting; r.savedAt = prev.savedAt; tooBigToast(); return; }
+  if (!cloudFits(r)) { r.tasting = prev.tasting; r.savedAt = prev.savedAt; r.series = prev.series; tooBigToast(); return; }   // 間引いた series を画面に残さない
   const ok = await Store.put('roasts', r.id, r);
   savedToast(ok, '評価を保存しました');
 }
 async function saveEdit() {
   const r = curRoast(); if (!r) return;
+  if (!canSave()) return;
+  const snap = structuredClone(r);
   // イベントは type ごとの置き換え。時間を変えていないイベントは auto などの印もそのまま、未知の type も残す
   const old = r.events || [], evs = old.filter(e => !EV[e.type]);
   for (const inp of document.querySelectorAll('#eEvents input[data-ev-edit]')) {
@@ -2602,13 +2727,14 @@ async function saveEdit() {
   const drop = evTime(r, 'drop'); if (drop != null) r.dropTime = drop;
   if (!getModel(r).sparse || r.schema === 2) r.points = RoastCore.toV1Points(RoastCore.normalizeRecord(r)); // 互換用の points も作り直す
   r.savedAt = Date.now(); upgradeV2(r); fitCloud(r);
-  if (!cloudFits(r)) { tooBigToast(); return; }
+  if (!cloudFits(r)) { Object.keys(r).forEach(k => { if (!(k in snap)) delete r[k]; }); Object.assign(r, snap); tooBigToast(); return; }   // 断ったら、間引き・修正のどちらも画面のデータに残さない
   const ok = await Store.put('roasts', r.id, r);
   savedToast(ok, '修正を保存しました（RoR も再計算しました）');
   $('#dEdit').open = false; renderDetail();
 }
 async function deleteRoast() {
   const r = curRoast(); if (!r) return;
+  if (!canSave()) return;
   if (!await confirmSheet(`「${r.beanName || '豆の名前なし'}」${fmtDate(r.startedAt)} の記録を削除しますか？元に戻せません。`, '削除する', true)) return;
   S.roasts = S.roasts.filter(x => x.id !== r.id);
   await Store.remove('roasts', r.id); toast('削除しました'); show('home');
@@ -2617,8 +2743,8 @@ async function deleteRoast() {
 /* ---------- BEANS ---------- */
 function renderBeans() {
   const counts = {}; S.roasts.forEach(r => { counts[r.beanId] = (counts[r.beanId] || 0) + 1; });
-  const list = S.beans.slice().sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-  $('#beanList').innerHTML = '<h3>登録済みの豆</h3>' + (list.length ? list.map(b => `<div class="bean-item"><div><b>${esc(b.name)}</b><div class="small muted">${esc([b.origin, b.process, b.shop].filter(Boolean).join('・'))}${counts[b.id] ? `・焙煎 ${counts[b.id]} 回` : ''}</div></div><div class="row"><button class="link" data-action="edit-bean" data-id="${esc(b.id)}">編集</button><button class="link" style="color:var(--danger)" data-action="del-bean" data-id="${esc(b.id)}">削除</button></div></div>`).join('') : '<div class="empty small">まだ豆が登録されていません。焙煎の準備画面からも登録できます。</div>');
+  const list = S.beans.slice().sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ja'));
+  $('#beanList').innerHTML = '<h3>登録済みの豆</h3>' + (list.length ? list.map(b => `<div class="bean-item"><div><b>${esc(b.name || '名前なし')}</b><div class="small muted">${esc([b.origin, b.process, b.shop].filter(Boolean).join('・'))}${counts[b.id] ? `・焙煎 ${counts[b.id]} 回` : ''}</div></div><div class="row"><button class="link" data-action="edit-bean" data-id="${esc(b.id)}">編集</button><button class="link" style="color:var(--danger)" data-action="del-bean" data-id="${esc(b.id)}">削除</button></div></div>`).join('') : '<div class="empty small">まだ豆が登録されていません。焙煎の準備画面からも登録できます。</div>');
 }
 function fillBeanForm(b) {
   S.editBeanId = b ? b.id : null;
@@ -2628,15 +2754,20 @@ function fillBeanForm(b) {
 }
 async function saveBean() {
   const name = $('#bName').value.trim(); if (!name) { toast('豆の名前を入力してください'); return; }
+  if (!canSave()) return;
   let b = S.beans.find(x => x.id === S.editBeanId);
   if (!b) { b = { id: uid('b'), createdAt: Date.now() }; S.beans.push(b); }
   Object.assign(b, { name, origin: $('#bOrigin').value.trim(), process: $('#bProcess').value.trim(), shop: $('#bShop').value.trim(), memo: $('#bMemo').value.trim() });
   // keep roast records' names in sync
-  S.roasts.filter(r => r.beanId === b.id && r.beanName !== b.name).forEach(r => { r.beanName = b.name; Store.put('roasts', r.id, r); });
-  await Store.put('beans', b.id, b); toast('豆を保存しました'); fillBeanForm(null); renderBeans();
+  let ok = true;
+  for (const r of S.roasts.filter(r => r.beanId === b.id && r.beanName !== b.name)) { r.beanName = b.name; if (!await Store.put('roasts', r.id, r)) ok = false; }
+  if (!await Store.put('beans', b.id, b)) ok = false;
+  if (ok) { toast('豆を保存しました'); fillBeanForm(null); } else savedToast(false);
+  renderBeans();
 }
 async function delBean(id) {
   const b = S.beans.find(x => x.id === id); if (!b) return;
+  if (!canSave()) return;
   if (!await confirmSheet(`「${b.name}」を豆の一覧から削除しますか？焙煎の記録は残ります。`, '削除する', true)) return;
   S.beans = S.beans.filter(x => x.id !== id); await Store.remove('beans', id); renderBeans();
 }
@@ -2730,6 +2861,7 @@ async function pushChannels(chs, okEsp, okLocal, baseRev) {
     }
     return;
   }
+  if (!canSave()) return;
   const st = settings(); st.channels = st.channels.map((c, i) => { const x = chs.find(y => y.idx === i); return x ? { ...c, ...Object.fromEntries(Object.entries(toKeyCh(x)).filter(e => e[1] !== undefined)) } : c; });
   const ok = await Store.put('config', 'app', st); chDirty = false; savedToast(ok, okLocal); paintChannelForm();
 }
@@ -2822,6 +2954,7 @@ function paintSettingsLive() {
 }
 const splitList = s => s.split(/[,、，]/).map(x => x.trim()).filter(Boolean);
 async function saveSettings() {
+  if (!canSave()) return;
   const st = settings();
   const fire = splitList($('#sFire').value), damper = splitList($('#sDamper').value), rpm = splitList($('#sRpm').value);
   if (!fire.length || !damper.length || !rpm.length) { toast('ボタンの段階を1つ以上入力してください'); return; }
@@ -3066,6 +3199,7 @@ function csvAll() {
 }
 const exportAll = () => offerFile(`焙煎記録バックアップ_${stamp()}.json`, JSON.stringify({ app: 'roastlog', version: 2, exportedAt: new Date().toISOString(), roasts: S.roasts, beans: S.beans, settings: S.settings }, null, 1));
 async function importJson(file) {
+  if (!canSave()) return;
   try {
     const data = JSON.parse(await file.text());
     if (!data || !Array.isArray(data.roasts)) throw 0;
@@ -3131,7 +3265,7 @@ document.addEventListener('click', async e => {
   else if (act === 'new-roast') { if (S.draft) { toast('焙煎中の記録があります。続けるか破棄してください'); return; } show('setup'); }
   else if (act === 'to-roast') startSetup();
   else if (act === 'charge') { if (!roGuard()) charge(); }
-  else if (act === 'toggle-sound') { settings().sound = !settings().sound; $('#soundBtn').textContent = settings().sound ? '音：オン' : '音：オフ'; Store.put('config', 'app', settings()); if (settings().sound) beep(); }
+  else if (act === 'toggle-sound') { if (!canSave()) return; settings().sound = !settings().sound; $('#soundBtn').textContent = settings().sound ? '音：オン' : '音：オフ'; Store.put('config', 'app', settings()); if (settings().sound) beep(); }
   else if (act === 'abort-roast') { if (roGuard()) return; if (await confirmSheet('この焙煎を中止して、記録を破棄しますか？', '中止する', true)) { stopTick(); releaseWake(); S.draft = null; S.live = null; saveDraft(); show('home'); } }
   else if (act === 'resume') { if (S.draft.tab !== TAB || S.ro) { if (!claimDraft()) { toast('別のタブで焙煎を続けています。そちらで操作してください', { err: true }); renderHome(); return; } } unlockAudio(); keepAwake(); show(S.draft.status === 'finishing' ? 'finish' : 'roast'); }
   else if (act === 'discard-draft') { if (leaseOther() && S.draft && S.draft.tab !== TAB) { toast('別のタブで焙煎を続けています。破棄できません', { err: true }); return; } if (await confirmSheet('途中の記録を破棄しますか？元に戻せません。', '破棄する', true)) { S.draft = null; S.live = null; saveDraft(); Sources.stop(); renderHome(); } }
@@ -3162,6 +3296,13 @@ document.addEventListener('click', async e => {
   else if (act === 'dg-enable') { const chs = readDiagEnable(+a.dataset.i); pushChannels(chs, '機器に保存しました', '設定を保存しました'); }
   else if (act === 'undo') { if (S.draft && !roGuard()) undo(); }
   else if (act === 'dismiss-lock') { lockDismissed = true; ls.set('roastlog.lockNote', 1); $('#lockNote').hidden = true; }
+  else if (act === 'legacy-view') legacyOpen(false);
+  else if (act === 'legacy-send') legacyOpen(true);
+  else if (act === 'legacy-send-now') legacySend();
+  else if (act === 'legacy-discard') legacyDiscard();
+  else if (act === 'legacy-close') document.getElementById('legacyReview')?.remove();
+  else if (act === 'noload-reload') reloadFromCloud();
+  else if (act === 'unsaved-export') exportAll();
   else if (act === 'migrate-export') { S.migrateNotice = false; renderHome(); exportAll(); }
   else if (act === 'migrate-dismiss') { S.migrateNotice = false; renderHome(); }
   else if (act === 'dismiss-ip') { ls.set('roastlog.ipNote', 1); renderHome(); }
@@ -3205,6 +3346,7 @@ window.__roastlog = { S, Sources, onSample, updateGauges, drawLive, Dg, Cal, Cfg
   S.roasts = data.roasts || []; S.beans = data.beans || [];
   S.settings = mergeSettings(data.settings);
   S.loaded = true; S.loadFrom = data.from;
+  renderSys();
   // 新しい版の初回だけ、書き出しをすすめる（db の config/notice と端末の印の両方で「出した」を覚える。記録には触らない）
   if (Store.mode === 'cloud' && data.from === 'cloud' && !Store.noticeSeen && !ls.get('roastlog.v2notice') && (S.roasts.length || S.beans.length || data.settings)) {
     S.migrateNotice = true; ls.set('roastlog.v2notice', 1);

@@ -94,7 +94,7 @@ test('fitCloud: 3ch・1230 点は間引かない。200,000 バイト超は 2 倍
   assert.deepEqual(by('rsmall').series, small.series, '小さい記録の series は完全一致');
   for (const id of ['rmid', 'rhuge']) { const r = by(id); assert.ok(r.series.decimated >= 2, id + ' は間引かれる'); assert.ok(bytes(r) <= 200000, `${id} は 200,000 バイト以下: ${bytes(r)}`); assert.deepEqual(r.gaps, [{ from: 100, to: 105 }]); }
   assert.equal(by('rmid').series.decimated, 2, '17000 点は 2 倍で足りる');
-  assert.ok(by('rhuge').series.decimated >= 8, '60000 点は 8 倍以上');
+  assert.ok(by('rhuge').series.decimated >= by('rmid').series.decimated, '60000 点は 17000 点以上に間引かれる'); // dropTime で打ち切った後の長さで決まる（a5 軽a）
   assert.equal(errors.length, 0, errors.join('\n')); await ctx.close();
 });
 
@@ -146,7 +146,7 @@ test('db 保存の失敗は画面に出る。送信待ちに入り、online で�
   await page.evaluate(() => { document.querySelector('#tMemo').value = '送信待ちテスト'; document.querySelector('[data-action="save-tasting"]').click(); });
   await waitFor(async () => (await toasts(page)).some(t => t.err && /claude\.ai に送れませんでした/.test(t.t)), '失敗の表示');
   assert.equal(dbDoc(db, 'roasts/' + v1.id).tasting.memo, v1.tasting?.memo, 'db はまだ古いまま');
-  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('roastlog.pending'))), [{ col: 'roasts', id: v1.id, op: 'set' }]);
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('roastlog.pending'))), [{ col: 'roasts', id: v1.id, op: 'set', v: 2 }]);
   await sleep(2700);
   db.fail = true; await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await waitFor(async () => (await toasts(page)).some(t => t.err && /送信待ち/.test(t.t)), '再送の失敗も表示');
