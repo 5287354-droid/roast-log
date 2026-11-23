@@ -53,7 +53,7 @@ function reboot() {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   const json = o => { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' }); res.end(JSON.stringify(o)); };
-  if (url.pathname === '/api/info') json({ proto: 1, fw: '0.1.0-native', model: 'RL-HOST', amp: AMP, id: 'b0b0b0', bootId, mode: 'sta', ip: '127.0.0.1', host: req.headers.host || '', sim: true });
+  if (url.pathname === '/api/info') json({ proto: 1, fw: '0.1.0-native', model: 'RL-HOST', amp: AMP, id: 'b0b0b0', bootId, mode: 'sta', ip: '127.0.0.1', host: req.headers.host || '', ota: false, sim: true });
   else if (url.pathname === '/api/sim/reboot') { reboot(); json({ ok: true }); }
   else { res.writeHead(404); res.end('not found'); }
 });

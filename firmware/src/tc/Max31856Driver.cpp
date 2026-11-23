@@ -25,7 +25,7 @@ void Max31856Driver::writeReg(uint8_t addr, uint8_t v) {
 // CR0 / CR1 を書いて読み戻す。CR0: 連続変換 + OCFAULT=01 + 50/60Hz。CR1: AVGSEL + K 型(0011)
 // 50/60Hz を書き換えるときは、いったん CMODE=0（変換停止）にしてから書き、連続変換に戻す
 bool Max31856Driver::applyAndVerify() {
-  uint8_t want0 = tcf::cr0Value(cfg_.mains), want1 = tcf::cr1Value(cfg_.avg);
+  uint8_t want1 = tcf::cr1Value(cfg_.avg);
   tcf::applyConfigSequence([this](uint8_t a, uint8_t v) { writeReg(a, v); }, cfg_.mains, cfg_.avg);   // CMODE=0 → 書く → CMODE=1（9.6）
   delay(2);
   uint8_t r[2];

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>温度計の組み立て（配線・はんだ付け・熱電対） - 焙煎記録ノート</title>
-<!-- source-sha256: b62528957527850418b0f8f165e67b1a92258c4404cacff4be930235327c7839（docs/HARDWARE.md から firmware/scripts/md_to_html.py で作る。直接は編集しない） -->
+<!-- source-sha256: 7f8f2d3b472814585f3974c9869f0b602fba06e68098d31e14733aab9d3d5de7（docs/HARDWARE.md から firmware/scripts/md_to_html.py で作る。直接は編集しない） -->
 <style>
 :root{--bg:#111;--fg:#f4f4f4;--sub:#b5b5b5;--line:#3a3a3a;--tl:#c2410c;--warn:#fbbf24}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 -apple-system,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif}
@@ -129,7 +129,7 @@ li{margin:.25rem 0}
 <h3 id="T8-AP-名とパスワードの表示">T8 AP 名とパスワードの表示</h3>
 <ul><li>やること: Wi-Fi を設定していない（または ボタン 5 秒長押しで消した）機器で、「ログとコンソール」を 1 分見る</li><li>期待: 10 秒ごとに <code>{"type":"wifi","apSsid":"RoastLog-XXXX","apPass":"…",…}</code> が出る。その名前とパスワードでスマホがつながる</li><li>だめなとき: 報告</li></ul>
 <h3 id="T9-Wi-Fi-設定の受付の制限">T9 Wi-Fi 設定の受付の制限</h3>
-<ul><li>やること:<ul><li>家の Wi-Fi につながっている状態で、パソコンから <code>curl -i -X POST -H 'Content-Type: application/json' -d '{"ssid":"x","pass":"12345678"}' http://roast.local/api/wifi</code>（または機器の IP）を実行する → <b>403</b>（受け付けない）</li><li>機器のボタンを<b>短く押す</b>（LED が 0.25 秒おきに点滅）→ 60 秒以内に同じコマンド → 200 になり、機器が再起動する。<b>実行すると Wi-Fi の設定が書き換わる</b>ので、<code>ssid</code> と <code>pass</code> は、家の Wi-Fi の本当の名前とパスワードにしておく</li><li>60 秒後にもう一度 → 403</li><li><code>Content-Type</code> を付けずに送る → 415。パスワードを 7 文字にする → 400。2KB の本文 → 413（1 回だけ）。空の本文 → 400</li></ul></li><li>期待: 上のとおり</li><li>だめなとき: 報告（コマンドと返ってきた内容を添える）</li></ul>
+<ul><li>やること:<ul><li>家の Wi-Fi につながっている状態で、パソコンから <code>curl -i -X POST -H 'Content-Type: application/json' -d '{"ssid":"x","pass":"12345678"}' http://roast.local/api/wifi</code>（または機器の IP）を実行する → <b>403</b>（受け付けない）</li><li>機器のボタンを<b>短く押す</b>（LED が 0.25 秒おきに点滅）→ 60 秒以内に同じコマンド → 200 になり、機器が再起動する。<b>実行すると Wi-Fi の設定が書き換わる</b>ので、<code>ssid</code> と <code>pass</code> は、家の Wi-Fi の本当の名前とパスワードにしておく</li><li>60 秒後にもう一度 → 403</li><li>もう一度ボタンを短く押して、受付中のあいだに: <code>Content-Type</code> を付けずに送る → 415。パスワードを 7 文字にする → 400。2KB の本文 → 413（1 回だけ）。空の本文 → 400</li></ul></li><li>期待: 上のとおり</li><li>だめなとき: 報告（コマンドと返ってきた内容を添える）</li></ul>
 <h3 id="T10-家の-Wi-Fi-が戻ったら自動でつなぎ直す">T10 家の Wi-Fi が戻ったら自動でつなぎ直す</h3>
 <ul><li>やること: 家のルーターを切って機器を起動する（20 秒後に AP になる）。そのまま、ルーターを入れ直す。スマホは機器につながない</li><li>期待: 最大 1〜2 分で、機器が家の Wi-Fi につながる（LED が点灯。「ログとコンソール」で <code>mode</code> が <code>ap_sta</code> か <code>sta</code> になる）</li><li>だめなとき: 報告。スマホを機器の AP につないでいると試さない仕様（つなぎ直しは、クライアントがいないときだけ）</li></ul>
 <h3 id="T11-複数の端末と-つなぎ直し">T11 複数の端末と、つなぎ直し</h3>
