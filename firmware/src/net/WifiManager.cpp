@@ -38,7 +38,7 @@ void WifiManager::pollDns() {
   int n = dns_.parsePacket();
   if (n <= 0) return;
   uint8_t q[256], out[300];
-  if (n > (int)sizeof q) { dns_.flush(); return; }
+  if (n > (int)sizeof q) { while (dns_.available()) dns_.read(); return; }
   int r = dns_.read(q, sizeof q);
   const uint8_t ip[4] = {192, 168, 4, 1};
   size_t m = dnsBuildReply(q, (size_t)r, host_.c_str(), ip, out, sizeof out);

@@ -1,8 +1,10 @@
 #include <unity.h>
 #include <string.h>
+#include <stdio.h>
 #include "tc/TcFault.h"
 #include "tc/SimTcDriver.h"
 #include "net/DnsReply.h"
+#include "tc/Max31855Decode.h"
 
 using namespace tcf;
 
@@ -118,6 +120,55 @@ void test_dns_only_roast() {
   TEST_ASSERT_EQUAL_size_t(0, dnsBuildReply(q, n, "roast", ip, out, sizeof out));
 }
 
+// ---- MAX31855 + NIST 補正
+// NIST 表の値（mV、基準接点 0℃）: 20℃=0.798 30℃=1.203 100℃=4.096 200℃=8.138 250℃=10.153 300℃=12.209
+void test_nist_forward_inverse() {
+  struct { double t, mv; } tab[] = {{20, 0.798}, {30, 1.203}, {100, 4.096}, {200, 8.138}, {250, 10.153}, {300, 12.209}, {-100, -3.554}};
+  for (auto& e : tab) {
+    TEST_ASSERT_DOUBLE_WITHIN(0.002, e.mv, nistk::mvFromC(e.t));
+    TEST_ASSERT_DOUBLE_WITHIN(0.06, e.t, nistk::cFromMv(e.mv));
+  }
+}
+void test_max31855_nist_correction_within_02() {
+  double cjs[] = {20, 30};
+  struct { double t, mv; } tab[] = {{100, 4.096}, {200, 8.138}, {250, 10.153}, {300, 12.209}};
+  double cjMv[] = {0.798, 1.203};
+  for (int k = 0; k < 2; k++) {
+    for (auto& e : tab) {
+      // チップの動作: 熱電対の電圧 V = E(T) - E(Tcj) を 41.276µV/℃ で割り、冷接点温度を足して出す
+      double tLin = (e.mv - cjMv[k]) / 0.041276 + cjs[k];
+      uint32_t w = max31855::encodeForTest(tLin, cjs[k]);
+      TcReading r = max31855::decode(w);
+      TEST_ASSERT_EQUAL_UINT8(TC_OK, r.fault);
+      char msg[64]; snprintf(msg, sizeof msg, "T=%g cj=%g lin=%.2f got=%.3f", e.t, cjs[k], tLin, r.tempC);
+      TEST_ASSERT_FLOAT_WITHIN_MESSAGE(0.2f, (float)e.t, r.tempC, msg);
+      TEST_ASSERT_FLOAT_WITHIN(0.07f, (float)cjs[k], r.cjC);
+      // 補正しないと誤差が大きいことも確かめる（250℃付近で数℃）
+      if (e.t == 300) TEST_ASSERT_TRUE(fabs(tLin - e.t) > 1.0);
+    }
+  }
+}
+void test_max31855_decode_bits() {
+  // 25℃ / 冷接点 25℃（補正しても 25℃付近）
+  TcReading r = max31855::decode(max31855::encodeForTest(25.0, 25.0));
+  TEST_ASSERT_EQUAL_UINT8(TC_OK, r.fault); TEST_ASSERT_FLOAT_WITHIN(0.05f, 25.0f, r.tempC);
+  // 負の値: -10℃ / 冷接点 -5℃
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, -10.0f, max31855::rawTc(max31855::encodeForTest(-10.0, -5.0)));
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, -5.0f, max31855::rawCj(max31855::encodeForTest(-10.0, -5.0)));
+  // 故障: D16 + D0/D1/D2
+  uint32_t base = max31855::encodeForTest(25.0, 25.0);
+  TEST_ASSERT_EQUAL_UINT8(TC_OPEN, max31855::decode(base | 0x10000u | 1u).fault);
+  TEST_ASSERT_EQUAL_UINT8(TC_SHORT_GND, max31855::decode(base | 0x10000u | 2u).fault);
+  TEST_ASSERT_EQUAL_UINT8(TC_SHORT_VCC, max31855::decode(base | 0x10000u | 4u).fault);
+  TEST_ASSERT_TRUE(isnan(max31855::decode(base | 0x10000u | 1u).tempC));
+  TEST_ASSERT_EQUAL_UINT8(TC_NO_DEVICE, max31855::decode(0u).fault);
+  TEST_ASSERT_EQUAL_UINT8(TC_NO_DEVICE, max31855::decode(0xFFFFFFFFu).fault);
+  // 内部温度 >125℃ は基板温度異常
+  TEST_ASSERT_EQUAL_UINT8(TC_CJ_RANGE, max31855::decode(max31855::encodeForTest(200.0, 126.0)).fault);
+  // 熱電対の範囲外（チップの上限 1800℃相当の生値）
+  TEST_ASSERT_EQUAL_UINT8(TC_RANGE, max31855::decode(max31855::encodeForTest(1600.0, 25.0)).fault);
+}
+
 void setUp() {}
 void tearDown() {}
 int main() {
@@ -130,5 +181,8 @@ int main() {
   RUN_TEST(test_stale_detector);
   RUN_TEST(test_sim_driver);
   RUN_TEST(test_dns_only_roast);
+  RUN_TEST(test_nist_forward_inverse);
+  RUN_TEST(test_max31855_nist_correction_within_02);
+  RUN_TEST(test_max31855_decode_bits);
   return UNITY_END();
 }

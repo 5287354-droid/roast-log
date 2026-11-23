@@ -20,14 +20,47 @@ jobs:
           node tools/sim/server.mjs --speed 20 --port 8787 &
           sleep 1
           node tools/test/proto/conformance.mjs --url ws://localhost:8787/ws
-  # 予告: firmware/ ができたら次のジョブを追加する（F1 以降）
-  #   firmware:
-  #     runs-on: ubuntu-latest
-  #     steps:
-  #       - uses: actions/checkout@v4
-  #       - uses: actions/setup-python@v5
-  #         with: { python-version: '3.12' }
-  #       - run: pip install platformio
-  #       - run: pio run -d firmware            # 全 env
-  #       - run: pio test -d firmware -e native
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            firmware/.pio/libdeps
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - run: pip install platformio==6.2.0
+      - run: npm ci || npm install
+      - name: native 単体テスト（Sampler / WsProtocol / 故障コード / NIST 補正 / DNS）
+        run: pio test -d firmware -e native
+      - name: 全 env のビルド
+        run: |
+          for e in xiao_c3 xiao_c3_31856 xiao_c3_sim esp32dev esp32c3_devkit native_bridge; do
+            pio run -d firmware -e $e
+          done
+      - name: ファームの C++ に適合試験を通す（native_bridge。sim / max31855 の 2 通り）
+        run: |
+          for amp in sim max31855; do
+            node firmware/tools/fw-bridge.mjs --port 8788 --speed 20 --amp $amp & P=$!
+            sleep 1
+            node tools/test/proto/conformance.mjs --url ws://localhost:8788/ws
+            kill $P || true
+            sleep 1
+          done
+      - name: ブラウザ書き込みページの bin（merged bin）
+        run: |
+          bash firmware/scripts/make_flash_bins.sh
+          node firmware/tools/check-flash-page.mjs --bins
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flash-bins
+          path: docs/flash/firmware/
   # 予告: E2E（Playwright）は T2 で追加する

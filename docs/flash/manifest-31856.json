@@ -1,0 +1,11 @@
+{
+  "name": "焙煎記録ノート（MAX31856 版）",
+  "version": "0.1.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-C3",
+      "parts": [{ "path": "firmware/xiao_c3_31856/roastlog-xiao_c3_31856-merged.bin", "offset": 0 }]
+    }
+  ]
+}

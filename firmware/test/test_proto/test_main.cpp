@@ -64,6 +64,8 @@ void test_enc_cfg_and_hello() {
 void test_enc_ack_pong_st() {
   std::string id = "c17";
   TEST_ASSERT_EQUAL_STRING("{\"type\":\"ack\",\"id\":\"c17\",\"ok\":true}", wsp::encAck(&id, true, nullptr).c_str());
+  uint32_t r9 = 9;
+  TEST_ASSERT_EQUAL_STRING("{\"type\":\"ack\",\"id\":\"c17\",\"ok\":true,\"rev\":9}", wsp::encAck(&id, true, nullptr, &r9).c_str());
   id = "c18"; uint32_t rev = 5;
   TEST_ASSERT_EQUAL_STRING("{\"type\":\"ack\",\"id\":\"c18\",\"ok\":false,\"err\":\"stale\",\"rev\":5}", wsp::encAck(&id, false, "stale", &rev).c_str());
   id = "p5";
@@ -228,31 +230,32 @@ void test_setcfg_partial_ack_cfg_broadcast() {
   f.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":null,\"lastSeq\":null}");
   f.msg(2, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":null,\"lastSeq\":null}");
   f.sink.clear();
-  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"c-ok\",\"baseRev\":0,\"channels\":[{\"idx\":0,\"offset\":1.5}]}");
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"c-ok\",\"baseRev\":1,\"channels\":[{\"idx\":0,\"offset\":1.5}]}");
   TEST_ASSERT_EQUAL(3, (int)f.sink.log.size());
   JsonDocument a = parse(f.sink.log[0].text);
   TEST_ASSERT_EQUAL_STRING("ack", a["type"]); TEST_ASSERT_TRUE((bool)a["ok"]); TEST_ASSERT_EQUAL(1, (int)f.sink.log[0].id);
   JsonDocument c1 = parse(f.sink.log[1].text), c2 = parse(f.sink.log[2].text);
-  TEST_ASSERT_EQUAL_STRING("cfg", c1["type"]); TEST_ASSERT_EQUAL(1, (int)c1["rev"]);
+  TEST_ASSERT_EQUAL(2, (int)a["rev"]);              // 成功時の ack にも新しい rev
+  TEST_ASSERT_EQUAL_STRING("cfg", c1["type"]); TEST_ASSERT_EQUAL(2, (int)c1["rev"]);
   TEST_ASSERT_EQUAL(1.5, (double)c1["channels"][0]["offset"]);
   TEST_ASSERT_EQUAL_STRING("et", c1["channels"][1]["role"]);       // 部分更新で他は変わらない
   TEST_ASSERT_EQUAL(2, (int)f.sink.log[2].id);
   TEST_ASSERT_TRUE(f.eng.takeCfgChanged()); TEST_ASSERT_FALSE(f.eng.takeCfgChanged());
-  TEST_ASSERT_EQUAL(15, f.cfg.ch[0].off10); TEST_ASSERT_EQUAL(1, (int)f.cfg.rev);
+  TEST_ASSERT_EQUAL(15, f.cfg.ch[0].off10); TEST_ASSERT_EQUAL(2, (int)f.cfg.rev);
 }
 void test_setcfg_stale_rev() {
   Fix f; f.feed(1); f.eng.onOpen(1, 0);
   f.msg(1, "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":null,\"lastSeq\":null}");
-  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"a\",\"baseRev\":0,\"channels\":[{\"idx\":0,\"offset\":2}]}");  // rev 0 → 1
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"a\",\"baseRev\":1,\"channels\":[{\"idx\":0,\"offset\":2}]}");  // rev 1 → 2
   f.sink.clear();
-  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"b\",\"baseRev\":0,\"channels\":[{\"idx\":0,\"offset\":9}]}");  // 古い
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"b\",\"baseRev\":1,\"channels\":[{\"idx\":0,\"offset\":9}]}");  // 古い
   TEST_ASSERT_EQUAL(1, (int)f.sink.log.size());                    // cfg は送らない
   JsonDocument a = parse(f.sink.log[0].text);
-  TEST_ASSERT_FALSE((bool)a["ok"]); TEST_ASSERT_EQUAL_STRING("stale", a["err"]); TEST_ASSERT_EQUAL(1, (int)a["rev"]);
-  TEST_ASSERT_EQUAL(20, f.cfg.ch[0].off10); TEST_ASSERT_EQUAL(1, (int)f.cfg.rev);  // 変わっていない
+  TEST_ASSERT_FALSE((bool)a["ok"]); TEST_ASSERT_EQUAL_STRING("stale", a["err"]); TEST_ASSERT_EQUAL(2, (int)a["rev"]);
+  TEST_ASSERT_EQUAL(20, f.cfg.ch[0].off10); TEST_ASSERT_EQUAL(2, (int)f.cfg.rev);  // 変わっていない
   f.sink.clear();
-  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"c\",\"baseRev\":1,\"channels\":[{\"idx\":0,\"offset\":3}]}");
-  TEST_ASSERT_TRUE((bool)parse(f.sink.log[0].text)["ok"]); TEST_ASSERT_EQUAL(2, (int)f.cfg.rev);
+  f.msg(1, "{\"type\":\"setcfg\",\"id\":\"c\",\"baseRev\":2,\"channels\":[{\"idx\":0,\"offset\":3}]}");
+  TEST_ASSERT_TRUE((bool)parse(f.sink.log[0].text)["ok"]); TEST_ASSERT_EQUAL(3, (int)f.cfg.rev);
 }
 void test_setcfg_errors_leave_cfg() {
   Fix f; f.eng.onOpen(1, 0);
@@ -272,7 +275,7 @@ void test_setcfg_errors_leave_cfg() {
     f.sink.clear(); f.msg(1, c.j);
     JsonDocument a = parse(f.sink.log[0].text);
     TEST_ASSERT_FALSE_MESSAGE((bool)a["ok"], c.j); TEST_ASSERT_EQUAL_STRING_MESSAGE(c.err, a["err"], c.j);
-    TEST_ASSERT_EQUAL_MESSAGE(0, (int)f.cfg.rev, c.j);
+    TEST_ASSERT_EQUAL_MESSAGE(1, (int)f.cfg.rev, c.j);
   }
   // 途中で失敗したら先の変更も反映しない
   f.sink.clear();
@@ -283,6 +286,27 @@ void test_setcfg_errors_leave_cfg() {
   f.msg(1, "{\"type\":\"setcfg\",\"id\":\"2\",\"channels\":[{\"idx\":2,\"enabled\":true,\"role\":\"amb\",\"name\":\"あいうえおかきくけこさしすせそたちつてとなにぬね\",\"color\":\"#00ff7f\"}],\"amp\":{\"mains\":60,\"avg\":16}}");
   TEST_ASSERT_TRUE((bool)parse(f.sink.log[0].text)["ok"]);
   TEST_ASSERT_TRUE(f.cfg.ch[2].enabled); TEST_ASSERT_EQUAL(60, f.cfg.mains); TEST_ASSERT_EQUAL(16, f.cfg.avg);
+}
+void test_setcfg_amp_unsupported_on_max31855() {
+  Fix f;
+  DeviceInfo di = mkInfo(); di.amp = "max31855";
+  ProtocolEngine eng(di, f.ring, f.cfg); eng.onOpen(1, 0);
+  std::string j = "{\"type\":\"hi\",\"app\":\"a\",\"ver\":\"1\",\"bootId\":null,\"lastSeq\":null}";
+  eng.onMessage(1, j.data(), j.size(), 0, f.sink);
+  TEST_ASSERT_EQUAL_STRING("max31855", parse(f.sink.log[0].text)["amp"]);
+  f.sink.clear();
+  j = "{\"type\":\"setcfg\",\"id\":\"u1\",\"amp\":{\"mains\":60}}";
+  eng.onMessage(1, j.data(), j.size(), 0, f.sink);
+  JsonDocument a = parse(f.sink.log[0].text);
+  TEST_ASSERT_FALSE((bool)a["ok"]); TEST_ASSERT_EQUAL_STRING("unsupported", a["err"]);
+  TEST_ASSERT_EQUAL(50, f.cfg.mains); TEST_ASSERT_EQUAL(1, (int)f.cfg.rev);
+  // チャンネルの変更はできる
+  f.sink.clear(); j = "{\"type\":\"setcfg\",\"id\":\"u2\",\"channels\":[{\"idx\":1,\"offset\":-0.5}]}";
+  eng.onMessage(1, j.data(), j.size(), 0, f.sink);
+  TEST_ASSERT_TRUE((bool)parse(f.sink.log[0].text)["ok"]);
+  TEST_ASSERT_EQUAL(2, (int)f.sink.log.size());
+  JsonDocument c = parse(f.sink.log[1].text);
+  TEST_ASSERT_EQUAL_STRING("max31855", c["amp"]["type"]);
 }
 void test_identify_unknown_and_garbage() {
   Fix f; f.eng.onOpen(1, 0);
@@ -318,6 +342,6 @@ int main() {
   RUN_TEST(test_slow_client_catches_up_with_bf_before_s); RUN_TEST(test_max_clients);
   RUN_TEST(test_bf_req); RUN_TEST(test_bf_req_over_300_chunks); RUN_TEST(test_ping_pong_echo);
   RUN_TEST(test_setcfg_partial_ack_cfg_broadcast); RUN_TEST(test_setcfg_stale_rev);
-  RUN_TEST(test_setcfg_errors_leave_cfg); RUN_TEST(test_identify_unknown_and_garbage); RUN_TEST(test_st_to_ready_only);
+  RUN_TEST(test_setcfg_errors_leave_cfg); RUN_TEST(test_setcfg_amp_unsupported_on_max31855); RUN_TEST(test_identify_unknown_and_garbage); RUN_TEST(test_st_to_ready_only);
   return UNITY_END();
 }

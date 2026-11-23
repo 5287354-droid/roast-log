@@ -27,7 +27,7 @@ static WifiManager wifi;
 static WebServer web(80);
 static WsHub hub;
 
-static uint32_t nextRead = 0, identifyUntil = 0, btnDownAt = 0, lastDiag = 0;
+static uint32_t nextRead = 0, identifyUntil = 0, btnDownAt = 0;
 static TcReading lastRead[3];
 static bool anyFault = false;
 
@@ -83,6 +83,9 @@ void setup() {
   nextRead = millis() + READ_PERIOD_MS;
   Serial.printf("{\"type\":\"boot\",\"fw\":\"%s\",\"model\":\"%s\",\"amp\":\"%s\",\"id\":\"%s\",\"bootId\":\"%s\",\"rev\":%u}\n",
                 info.fw, info.model, info.amp, info.id, info.bootId, (unsigned)cfg.rev);
+  // ラベルが無いときのために、AP の名前とパスワードを起動時に出す（USB をつないだ本人にしか見えない）
+  Serial.printf("{\"type\":\"wifi\",\"apSsid\":\"%s\",\"apPass\":\"%s\",\"host\":\"%s.local\",\"mode\":\"%s\"}\n",
+                wifi.apSsid().c_str(), wifi.apPass().c_str(), wifi.host().c_str(), wifi.mode());
 }
 
 static void printDiag() {

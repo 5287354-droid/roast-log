@@ -34,7 +34,7 @@ void WebServer::begin(const DeviceInfo& di, WifiManager& wifi, Settings& setting
     if (etag_.length() == 0) { req->redirect("/wifi"); return; }   // アプリ（LittleFS）が無ければ /wifi へ
     if (req->hasHeader("If-None-Match") && req->header("If-None-Match") == etag_) { req->send(304); return; }
     // "/index.html" は無く "/index.html.gz" だけがあるので、ライブラリが gzip ヘッダを付けて返す
-    AsyncWebServerResponse* r = req->beginResponse(LittleFS, "/index.html", "text/html");
+    AsyncWebServerResponse* r = req->beginResponse(LittleFS, "/index.html", "text/html; charset=utf-8");
     r->addHeader("Cache-Control", "no-cache");
     r->addHeader("ETag", etag_);
     req->send(r);
@@ -63,7 +63,8 @@ void WebServer::begin(const DeviceInfo& di, WifiManager& wifi, Settings& setting
       bool first = true;
       for (int i = 0; i < n; i++) {
         String s = WiFi.SSID(i); if (s.length() == 0) continue;
-        if (!first) j += ','; first = false;
+        if (!first) j += ',';
+        first = false;
         j += "{\"ssid\":" + jsonStr(s) + ",\"rssi\":" + String(WiFi.RSSI(i)) + ",\"open\":" + (WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "true" : "false") + "}";
       }
       j += "]}";

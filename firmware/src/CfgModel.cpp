@@ -14,7 +14,7 @@ void cfgDefaults(DeviceConfig& c) {
   setCh(c.ch[0], true, "bt", "豆温度", "#C2410C");
   setCh(c.ch[1], true, "et", "排気", "#7A5AA6");
   setCh(c.ch[2], false, "off", "", "#6B7280");
-  c.mains = 50; c.avg = 4; c.rateHz = 1; c.rev = 0;
+  c.mains = 50; c.avg = 4; c.rateHz = 1; c.rev = 1;   // sim サーバと同じく 1 から
 }
 int roleIndex(const char* s) {
   for (int i = 0; i < 5; i++) if (strcmp(s, kRoles[i]) == 0) return i;
@@ -34,8 +34,11 @@ static bool isHexColor(const char* s) {
   return true;
 }
 
-const char* applySetcfg(DeviceConfig& cfg, JsonObjectConst m) {
+bool ampIsConfigurable(const char* a) { return strcmp(a, "max31855") != 0; }
+
+const char* applySetcfg(DeviceConfig& cfg, JsonObjectConst m, bool ampConfigurable) {
   DeviceConfig next = cfg;
+  if (!m["amp"].isNull() && !ampConfigurable) return "unsupported";   // sim サーバと同じく最初に判定
   if (!m["baseRev"].isNull()) {
     if (!m["baseRev"].is<int64_t>()) return "bad_value";
     if ((int64_t)m["baseRev"].as<int64_t>() != (int64_t)cfg.rev) return "stale";

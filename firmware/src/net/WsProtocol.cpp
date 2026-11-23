@@ -278,9 +278,9 @@ void ProtocolEngine::onMessage(uint32_t id, const char* data, size_t len, uint32
     const Sample* l = sq ? ring_.get(sq) : nullptr;
     sink.send(id, wsp::encPong(idp, t, l ? l->ms : nowMs));
   } else if (type == "setcfg") {
-    const char* err = applySetcfg(cfg_, m);
+    const char* err = applySetcfg(cfg_, m, ampIsConfigurable(di_.amp));
     if (err) { uint32_t rev = cfg_.rev; ack(false, err, strcmp(err, "stale") == 0 ? &rev : nullptr); }
-    else { ack(true, nullptr); cfgChanged_ = true; broadcastCfg(sink); }
+    else { uint32_t rev = cfg_.rev; ack(true, nullptr, &rev); cfgChanged_ = true; broadcastCfg(sink); }
   } else if (type == "identify") {
     identify_ = true; ack(true, nullptr);
   } else {

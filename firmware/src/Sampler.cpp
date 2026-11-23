@@ -1,5 +1,4 @@
 #include "Sampler.h"
-#include <algorithm>
 
 AggResult aggregateReads(const TcReading* r, int n) {
   float vals[AGG_READS]; int k = 0; uint8_t lastFault = TC_NO_DEVICE;
@@ -8,7 +7,7 @@ AggResult aggregateReads(const TcReading* r, int n) {
     else lastFault = r[i].fault != TC_OK ? r[i].fault : TC_NO_DEVICE;
   }
   if (k == 0) return {false, 0.0f, lastFault};
-  std::sort(vals, vals + k);
+  for (int i = 1; i < k; i++) { float x = vals[i]; int j = i - 1; while (j >= 0 && vals[j] > x) { vals[j + 1] = vals[j]; j--; } vals[j + 1] = x; }  // 挿入ソート（最大 4 個）
   float m = (k % 2) ? vals[k / 2] : (vals[k / 2 - 1] + vals[k / 2]) * 0.5f;
   return {true, m, TC_OK};
 }

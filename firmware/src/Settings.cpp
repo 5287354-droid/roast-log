@@ -7,7 +7,7 @@ void Settings::loadConfig(DeviceConfig& c) {
   cfgDefaults(c);
   uint8_t m = p_.getUChar("mains", c.mains); if (m == 50 || m == 60) c.mains = m;
   uint8_t a = p_.getUChar("avg", c.avg); if (a == 1 || a == 2 || a == 4 || a == 8 || a == 16) c.avg = a;
-  c.rev = p_.getUInt("rev", 0);
+  c.rev = p_.getUInt("rev", c.rev);
   for (int i = 0; i < 3; i++) {
     char k[16];
     ChannelCfg& ch = c.ch[i];

@@ -6,7 +6,9 @@
 #include "Mcp9600Driver.h"
 #include "SimTcDriver.h"
 
+#if defined(TC_DRIVER_SIM)
 static uint32_t nowMs() { return millis(); }
+#endif
 
 TcDriver* makeDriver(uint8_t idx) {
   static const uint8_t cs[3] = {PIN_CS1, PIN_CS2, PIN_CS3};

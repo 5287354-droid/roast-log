@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>機器に書き込む - 焙煎記録ノート</title>
+<meta name="description" content="焙煎記録ノートの温度計（ESP32）に、ブラウザからファームウェアとアプリを書き込むページです。">
+<!-- ESP Web Tools（版を固定）。Web Serial を使うので、パソコンの Chrome / Edge で開いてください -->
+<script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
+<style>
+:root{--bg:#111;--fg:#f4f4f4;--sub:#b5b5b5;--line:#3a3a3a;--tl:#c2410c;--warn:#fbbf24;--card:#1b1b1b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 -apple-system,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif}
+main{max-width:46rem;margin:0 auto;padding:1rem 1rem 4rem}
+h1{font-size:1.5rem;margin:.5rem 0 1rem;padding-bottom:.4rem;border-bottom:4px solid var(--tl)}
+h2{font-size:1.15rem;margin:2rem 0 .6rem;padding-left:.6rem;border-left:6px solid var(--tl)}
+p,li{color:var(--fg)}
+small,.sub{color:var(--sub)}
+ol{padding-left:1.4rem}
+li{margin:.35rem 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:1rem;margin:1rem 0}
+.warn{border-color:var(--warn)}
+.warn strong{color:var(--warn)}
+fieldset{border:1px solid var(--line);border-radius:4px;padding:.6rem 1rem;margin:0 0 1rem}
+legend{font-weight:700;padding:0 .3rem}
+label{display:block;margin:.3rem 0;cursor:pointer}
+kbd{background:#2a2a2a;border:1px solid #555;border-radius:3px;padding:0 .35rem;font-family:inherit}
+code{background:#222;padding:0 .3rem;border-radius:3px}
+esp-web-install-button button[slot=activate]{font:inherit;font-weight:700;font-size:1.15rem;background:var(--tl);color:#fff;border:0;border-radius:4px;padding:.8rem 2rem;cursor:pointer}
+#nosupport{display:none}
+a{color:var(--warn)}
+</style>
+</head>
+<body>
+<main>
+<h1>温度計に書き込む</h1>
+<p>焙煎記録ノートの温度計（ESP32）に、<b>ファームウェア</b>と<b>アプリ</b>をまとめて書き込みます。USB ケーブル 1 本と、パソコンの Chrome があればできます。</p>
+
+<div class="card warn" id="nosupport">
+  <strong>このブラウザでは書き込めません。</strong><br>
+  パソコン（Windows / Mac / Linux）の <b>Google Chrome</b> か <b>Microsoft Edge</b> で、このページを開いてください。スマホや Safari・Firefox は使えません。
+</div>
+
+<h2>1. 使うアンプを選ぶ</h2>
+<fieldset>
+  <legend>温度アンプ（基板）</legend>
+  <label><input type="radio" name="amp" value="manifest.json" checked> MAX31855（試作の標準。Adafruit #269 など）</label>
+  <label><input type="radio" name="amp" value="manifest-31856.json"> MAX31856（Adafruit #3263 など）</label>
+</fieldset>
+<p class="sub">ボード（XIAO ESP32C3 / ESP32 DevKit）は、つないだときに自動で見分けます。</p>
+
+<h2>2. 機器をパソコンにつなぐ</h2>
+<ol>
+  <li><b>データ通信ができる</b> USB-C ケーブルを用意します（充電専用のケーブルでは認識しません）。</li>
+  <li>XIAO ESP32C3 の場合: 基板の <kbd>B</kbd>（BOOT）ボタンを<b>押したまま</b> USB ケーブルを挿し、挿したらボタンを離します。<br>
+    <small>はじめて書き込むときや、うまく認識しないときに必要です。2 回目以降は押さなくても書けることが多いです。</small></li>
+  <li>ESP32 DevKit の場合: そのまま挿します。うまくいかないときは <kbd>BOOT</kbd> を押しながら書き込みを始めてください。</li>
+  <li>Windows で機器が出てこないときは、USB シリアルのドライバ（CP210x / CH340）を入れてください。XIAO ESP32C3 はドライバ不要です。</li>
+</ol>
+
+<h2>3. 書き込む</h2>
+<p><esp-web-install-button id="installer" manifest="manifest.json">
+  <button slot="activate">書き込む</button>
+  <span slot="unsupported"></span>
+  <span slot="not-allowed">このページは https で開く必要があります。</span>
+</esp-web-install-button></p>
+<ol>
+  <li>「書き込む」を押すと、接続先を選ぶ窓が出ます。<b>USB JTAG/serial debug unit</b>（XIAO）や <b>CP2102 / USB Serial</b>（DevKit）を選んで「接続」。</li>
+  <li>「INSTALL（インストール）」を押します。「消去してから書き込む」にチェックを入れると、Wi-Fi の設定もまっさらになります（はじめてならチェック推奨）。</li>
+  <li>1〜2 分で終わります。終わるまでケーブルを抜かないでください。</li>
+  <li>終わったら、XIAO の <kbd>R</kbd>（RESET）ボタンを押すか、USB を挿し直してください。</li>
+</ol>
+
+<h2>4. 書き込んだあと</h2>
+<ol>
+  <li>スマホの Wi-Fi 設定に <b>RoastLog-XXXX</b> が出てきます。つなぐときのパスワードは、機器のラベルに書いてある 8 桁の数字です（ラベルが無いときは、パソコンでシリアルモニタを開くと起動時に表示されます）。</li>
+  <li>つないだら、Safari / Chrome で <code>http://192.168.4.1</code> を開きます。焙煎記録ノートが出れば成功です。</li>
+  <li>家の Wi-Fi につなぎたいときは <code>http://192.168.4.1/wifi</code> で設定すると、以後は <code>http://roast.local</code> で開けます。</li>
+</ol>
+
+<div class="card">
+  <b>うまくいかないとき</b>
+  <ul>
+    <li>接続先の窓に何も出ない → ケーブルを替える／BOOT ボタンを押しながら挿し直す。</li>
+    <li>「Failed to connect」 → BOOT を押したまま挿し直してから、もう一度「書き込む」。</li>
+    <li>書き込んだのにアプリが出ない → 「消去してから書き込む」にチェックを入れて、もう一度書き込む。</li>
+  </ul>
+</div>
+
+<div class="card warn">
+  <strong>安全のために</strong>
+  <ul>
+    <li>温度計の本体（基板・ケーブル）は、焙煎機や火から離して置いてください。熱くなるのは熱電対の先だけです。</li>
+    <li>熱電対の線の色と＋−の見分け方は、配線の説明（<a href="../HARDWARE.md">docs/HARDWARE.md</a>）を見てください。</li>
+  </ul>
+</div>
+
+<p class="sub">このページは ESP Web Tools（Apache-2.0）を使っています。ファームウェアとアプリは MIT ライセンスです。</p>
+</main>
+<script>
+  if (!('serial' in navigator)) document.getElementById('nosupport').style.display = 'block';
+  for (const r of document.querySelectorAll('input[name=amp]')) r.addEventListener('change', e => { document.getElementById('installer').setAttribute('manifest', e.target.value); });
+</script>
+</body>
+</html>
