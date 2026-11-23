@@ -417,6 +417,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
         <li>つまんだ（入れた）チャンネルのカードが<b>光って</b>、温度が上がれば、配線は正しい</li>
         <li>ちがうカードが光る・下がる・何も起きないときは、下の「確認の結果」の指示を見る</li>
       </ol>
+      <div class="small muted">「GND短絡」「VCC短絡」と出るときは、接地型プローブ（先端が金属の管に溶接されているもの）かもしれません。非接地型を使ってください。</div>
       <div class="small muted">どれが CH1 かわからないときは、プローブを1本ずつ確かめてください。反応した分だけ光ります。「使わない」設定のチャンネルは値が出ないので、挿しているときは「使う」にしてください。</div>
     </div>
     <div class="panel" id="dgColors"><h3>線の色（K型）</h3>
@@ -533,11 +534,14 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
     </div>
     <div class="panel" id="pDev" hidden>
       <h3>機器（ESP32）</h3>
+      <div class="note" id="ampNote" hidden><span>この機器のアンプ（MAX31855）では、電源周波数と平均化の回数は設定できません（アンプが自動で処理します）。</span></div>
+      <div class="stack" id="ampBox">
       <div class="field"><span class="label">電源周波数（東日本 50Hz／西日本 60Hz）</span>
         <div class="seg" id="sMains"><button type="button" data-v="50">50Hz</button><button type="button" data-v="60">60Hz</button></div></div>
       <div class="field"><span class="label">平均化の回数</span>
         <div class="seg" id="sAvg"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="4">4</button><button type="button" data-v="8">8</button><button type="button" data-v="16">16</button></div></div>
-      <button class="btn primary" data-action="save-device">機器の設定を保存</button>
+      <button class="btn primary" data-action="save-device">機器の設定を保存（電源周波数・平均化）</button>
+      </div>
       <div class="row"><a class="btn ghost" id="devWifi" href="/wifi" target="_blank" rel="noopener">Wi-Fi 設定を開く</a><a class="btn ghost" id="devUpdate" href="/update" target="_blank" rel="noopener">ファームウェア更新</a></div>
       <button class="btn ghost" data-action="dev-identify">機器を光らせる（LED が 3 秒点滅）</button>
     </div>
@@ -791,13 +795,15 @@ function despike(prev5, x, st, jump) {
   if (!prev5.length) { prev5.push(x); return x; }
   const m = median(prev5), last = prev5[prev5.length - 1];
   if (Math.abs(x - m) > J && Math.abs(x - last) > J) { // 物理的にありえない跳び（直前値からも離れているとき）
-    const dir = Math.sign(x - m), p = st.pend;
-    if (p.length && p[0] !== dir) p.length = 0;
-    p.push(dir);
-    if (p.length >= 3) { p.length = 0; prev5.length = 0; prev5.push(x); return x; } // 同じ方向に 3 点続いたら本物
+    const dir = Math.sign(x - m), p = st.pend, pv = st.pv || (st.pv = []);
+    if (p.length && p[0] !== dir) { p.length = 0; pv.length = 0; }
+    p.push(dir); pv.push(x);
+    if (p.length >= 3) { st.confirmed = pv.slice(0, -1); p.length = 0; pv.length = 0; prev5.length = 0; prev5.push(x); return x; } // 同じ方向に 3 点続いたら本物。保留していた値は st.confirmed に返す（呼び出し側が null を埋め戻す）
     return null;
   }
-  st.pend.length = 0;
+  // 保留していた値が、いまの（普通の）値の近くなら、跳びは本物だった（下がりきって落ち着いた）。保留していた値を返す。遠ければ単発の外れ値なので捨てる
+  if (st.pv && st.pv.length && st.pv.every(y => Math.abs(y - x) <= J)) { st.confirmed = st.pv.slice(); prev5.length = 0; st.confirmed.forEach(y => prev5.push(y)); }
+  st.pend.length = 0; if (st.pv) st.pv.length = 0;
   prev5.push(x); if (prev5.length > 5) prev5.shift();
   return x;
 }
@@ -1455,13 +1461,18 @@ function mkEnt(s, ds) {
   ds = ds || LV.ds;
   const jump = ((S.draft && S.draft.roasterType) || settings().roasterType) === 'tenami' ? 25 : 12; // 手網は振りで ±15℃ 揺れるので、外れ値の閾値をゆるめる（暫定）
   const v = [0, 1, 2].map(i => (s.f && s.f[i]) || s.v[i] == null ? null : RoastCore.despike(ds[i].prev5, s.v[i], ds[i].st, jump));
-  return { epoch: s.epoch, seq: s.seq, boot: s.boot || '', v, f: s.f || [0, 0, 0], raw: s.v };
+  const back = [0, 1, 2].map(i => { const c = ds[i].st.confirmed; ds[i].st.confirmed = null; return c && c.length ? c : null; });   // 本物と確かめられた跳び: 保留していた直前の値
+  return { epoch: s.epoch, seq: s.seq, boot: s.boot || '', v, f: s.f || [0, 0, 0], raw: s.v, back: back.some(Boolean) ? back : null };
 }
 function onSample(s) {
   if (!LV || !s) return;
   if (s.backfill) return onBackfill({ samples: [s] });
   // 秒が飛んだ（切断のあと・再起動）ときは、ライブの外れ値除去の状態を捨てる（古い値と比べて、新しい値を外れ値にしないため）
-  if (LV.sq && (s.boot !== LV.sq.boot || s.seq !== LV.sq.seq + 1)) LV.ds = [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } }));
+  // ただし、つながり直したあと先に届いた bf の続き（seq が bf の次）なら、bf の状態を引き継ぐ。切れた所の状態は dsSnap に残し、あとから届く bf に渡す
+  if (LV.sq && (s.boot !== LV.sq.boot || s.seq !== LV.sq.seq + 1)) {
+    if (LV.bf && LV.bf.boot === s.boot && LV.bf.next === s.seq) LV.ds = LV.bf.ds;
+    else { LV.dsSnap = { boot: LV.sq.boot, seq: LV.sq.seq, ds: structuredClone(LV.ds) }; LV.ds = [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } })); }
+  }
   LV.sq = { boot: s.boot, seq: s.seq };
   const ent = mkEnt(s);
   LV.pre.push(ent); if (LV.pre.length > 180) LV.pre.shift();
@@ -1472,7 +1483,7 @@ function onSample(s) {
     d.channels.forEach(c => { const i = chIdx(c.key), f = ent.f[i] || 0, pf = LV.lastF[i] || 0; if (f && !pf) { beep(); toast(`CH${i + 1} ${c.name || c.key}: ${FAULT_NAMES[f] || '故障'}`, { err: true }); } });
     if ((d.source === 'esp32' || d.source === 'sim') && Sources.active.clock) d.live = Sources.active.clock(); // 戻ったとき・開き直したときの続きから（hi の lastSeq と、時計のつなぎ）
     if (d.status === 'ready') tryAutoCharge(d);
-    else if (d.startedAt) { recordEnt(d, ent); touchDraft(); }
+    else if (d.startedAt && S.live) { S.live.dirty = false; recordEnt(d, ent); if (S.live && S.live.dirty) { const old = S.live, L = rebuildLive(d); L.beeped = old.beeped; L.hintT = old.hintT; } touchDraft(); }
   }
   LV.lastF = ent.f.slice();
   calFeed(s);
@@ -1488,7 +1499,12 @@ function onBackfill(b) {
   const d = S.draft;
   if (!(d && isAuto(d) && d.status === 'roasting' && d.startedAt && S.live)) return;
   // 外れ値除去の状態は、バックフィル専用（s の状態と混ぜない）。続きの bf（from が前の to+1）なら引き継ぐ
-  if (!LV.bf || b.from == null || LV.bf.next !== b.from) LV.bf = { ds: [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } })), next: null };
+  // ただし、切れる直前の s の続き（同じ起動で seq が次）なら、その時点の状態から続ける（保留中の跳びを、bf の値で確かめられるように）
+  const b0 = b.samples && b.samples[0], boot = b0 ? b0.boot : null;
+  if (!LV.bf || b.from == null || LV.bf.next !== b.from || LV.bf.boot !== boot) {
+    const seam = LV.sq && LV.sq.boot === boot && LV.sq.seq + 1 === b.from ? LV.ds : LV.dsSnap && LV.dsSnap.boot === boot && LV.dsSnap.seq + 1 === b.from ? LV.dsSnap.ds : null;
+    LV.bf = { ds: seam ? structuredClone(seam) : [0, 1, 2].map(() => ({ prev5: [], st: { pend: [] } })), next: null, boot };
+  }
   S.live.dirty = false;
   b.samples.forEach(s => recordEnt(d, mkEnt(s, LV.bf.ds), true));
   if (b.to != null) LV.bf.next = b.to + 1;
@@ -1524,7 +1540,8 @@ function recordEnt(d, ent, bf) {
   if (L.lastT != null && t - L.lastT > 600 && d.source !== 'esp32') return; // 時計が大きく飛んだ（シミュレーターの再起動など）。機器の再起動は欠測として残す
   if (L.lastT != null && t <= L.lastT) {
     const idx = t - start; let filled = false;
-    d.channels.forEach(c => { const x = ent.v[chIdx(c.key)], arr = d.series.data[c.key]; if (arr && arr[idx] == null && x != null) { arr[idx] = Math.round(x * 10); L.m.v[c.key][idx] = arr[idx] / 10; filled = true; } });
+    d.channels.forEach(c => { const x = ent.v[chIdx(c.key)], arr = d.series.data[c.key]; if (arr && arr[idx] == null && x != null) { arr[idx] = Math.round(x * 10); L.m.v[c.key][idx] = arr[idx] / 10; filled = true; }
+      const b = ent.back && ent.back[chIdx(c.key)]; if (b && arr) b.forEach((y, k) => { const j = idx - b.length + k; if (j >= 0 && arr[j] == null && y != null) { arr[j] = Math.round(y * 10); L.m.v[c.key][j] = arr[j] / 10; filled = true; } }); });
     if ((d.gaps || []).some(g => t >= g.from && t <= g.to)) { const ng = RoastCore.removeGap(d.gaps.map(g => [g.from, g.to]), t); d.gaps = ng.map(g => ({ from: g[0], to: g[1] })); L.m.gaps = ng; } // 受け取れた秒は欠測ではない
     if (filled) L.dirty = true;
     return;
@@ -1538,6 +1555,7 @@ function recordEnt(d, ent, bf) {
   });
   while (m.t.length <= idx) m.t.push(start + m.t.length);
   m.n = m.t.length;
+  if (ent.back) d.channels.forEach(c => { const b = ent.back[chIdx(c.key)], arr = d.series.data[c.key]; if (!b) return; b.forEach((x, k) => { const j = idx - b.length + k; if (j >= 0 && arr[j] == null && x != null) { arr[j] = Math.round(x * 10); m.v[c.key][j] = arr[j] / 10; L.dirty = true; } }); });   // 保留していた値を埋め戻す
   if (L.lastT == null || t > L.lastT) L.lastT = t;
   if (t < 0) return;
   const x = ent.v[primIdx(d)], res = RoastCore.rorPush(L.R, t, x);
@@ -2048,8 +2066,9 @@ function renderRoast() {
   $('#lockNote').hidden = !(auto && !lockDismissed && (!ls.get('roastlog.lockNote') || !('wakeLock' in navigator)));
   if (d.undone && !d.startedAt) banner('redo', '投入を取り消しました。取り消す前の記録は、まだ戻せます', { action: { label: 'やり直す', fn: redoCharge }, close: false }); else clearBanner('redo');
   if (d.dropPending != null && !dropWaitSince) dropWaitSince = Date.now();
-  paintRo(); paintBanners();
+  paintBanners();
   kpBuf = ''; chipCache = ''; paintLiveLegend(); renderKeypad(); renderEvents(); renderControls(); paintConn(); updateGauges(); drawLive(true);
+  paintRo();
   if ((d.startedAt || auto) && !S.ro) startTick();
 }
 function renderKeypad() {
@@ -2298,6 +2317,7 @@ function charge(t0Epoch, info) {
   S.live = newLive(d); d.clk = []; d.undone = null; clearBanner('redo');
   const ce = LV && LV.pre.find(e => e.epoch === d.startedAt); if (ce) d.clk.push({ boot: ce.boot, seq0: ce.seq, t0: 0 });   // 投入したサンプルが t = 0
   (LV ? LV.pre : []).forEach(e => { if (tOf(d, e) >= d.series.start) recordEnt(d, e); });
+  if (S.live.dirty) rebuildLive(d);
   if (manual && Sources.active.control) Sources.active.control({ charge: true }); // シミュレーターの豆も投入する
   unlockAudio();
   if (!manual) { pushUndo({ type: 'autoCharge' }); toast(`投入を検知しました（${fmt(info.ago)} 前）`, { action: { label: '取り消す', fn: askUndoCharge }, ms: 9000 }); }
@@ -2667,6 +2687,7 @@ function diffChannels(base, chs) {
 }
 async function cfgSend(partial, baseRev) {
   const src = Sources.active, msg = { ...partial };
+  if (ampFixed()) delete msg.amp;   // MAX31855 には amp の設定がない
   if (baseRev != null) msg.baseRev = baseRev;
   CfgS.pending++;
   try { return await src.setConfig(msg); } finally { setTimeout(() => { CfgS.pending--; }, 800); }   // cfg が ack のあとに届いても、自分の変更として扱う
@@ -2702,8 +2723,12 @@ function onDeviceInfo() {
   else if (S.view === 'setup') { const sid = curSourceId(); $('#suMeas').hidden = sid === 'manual'; $('#suIntervalBox').hidden = sid !== 'manual'; if (sid !== 'manual') { Sources.use(sid); paintMeas(); } }
 }
 const chipHtml = (c, i) => { const cur = LV && LV.cur, f = cur ? cur.f[i] : 0, v = cur ? cur.raw[i] : null; return f ? `<span class="num" style="color:var(--danger);font-size:16px">${esc(FAULT_NAMES[f] || '故障')}</span>` : `<span class="num">${v == null ? '—' : r1(v) + '℃'}</span>`; };
+// アンプの種類（hello.amp・/api/info の amp）。MAX31855 は電源周波数・平均化の設定がないので、機器パネルで隠し、setcfg に amp を入れない
+const devAmp = () => { const src = Sources.active; return String((src.id === 'esp32' && src.info && src.info.amp) || (S.device && S.device.amp) || '').toLowerCase(); };
+const ampFixed = () => devAmp() === 'max31855';
 function paintSettingsLive() {
   if (S.view !== 'settings') return;
+  $('#ampBox').hidden = ampFixed(); $('#ampNote').hidden = !ampFixed();
   [0, 1, 2].forEach(i => { const el = $('#chCur' + i); if (el) el.innerHTML = chipHtml(null, i); });
   const src = Sources.active, esp = src.id === 'esp32', st = LV ? connState() : 'down';
   const rows = [];
@@ -2741,6 +2766,7 @@ async function saveSettings() {
 }
 async function saveDevice() {
   const src = Sources.active; if (src.id !== 'esp32') { toast('ESP32 につながっていません', { err: true }); return; }
+  if (ampFixed()) { toast('この機器（MAX31855）では、電源周波数と平均化は設定できません'); return; }
   const b = CfgS.base || {}, amp = {};
   if ((Number(sv.mains) || 50) !== b.mains) amp.mains = Number(sv.mains) || 50;
   if ((Number(sv.avg) || 4) !== b.avg) amp.avg = Number(sv.avg) || 4;
@@ -2802,8 +2828,8 @@ async function calApply() {
 /* ---------- センサー診断（組み立て直後の配線確認）---------- */
 const FAULT_HELP = {
   1: 'プローブがつながっていないか、線が切れています。端子（＋ー）のゆるみ・差し込みを確かめてください。使っていないチャンネルの端子に挿していないかも見てください。',
-  2: '＋かーの線が GND に触れています。端子まわりの金属接触を確かめてください。',
-  3: '線が VCC（電源）に触れています。端子まわりを確かめてください。',
+  2: '＋かーの線が GND に触れています。端子まわりの金属接触を確かめてください。接地型プローブ（先端が金属の管に溶接されているもの）だと GND 短絡になることがあります。非接地型を使ってください。',
+  3: '線が VCC（電源）に触れています。端子まわりを確かめてください。接地型プローブ（先端が金属の管に溶接されているもの）だと短絡になることがあります。非接地型を使ってください。',
   4: '電圧異常です。プローブの線が金属に触れていないか、アンプの電源（3.3V）を確かめてください。',
   5: '測定できる温度の範囲外です。K型のプローブか、＋ーが逆でないかを確かめてください（線の色は規格で違います。K型は − 側が磁石に付きます）。',
   6: '基板の温度が異常です。基板が熱くなっていないか確かめてください（炎から離す）。',
@@ -3092,7 +3118,7 @@ if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEven
 resetLive();
 S.draft = ls.get(DRAFT_KEY);
 show('home');
-window.__roastlog = { S, Sources, updateGauges, drawLive, Dg, Cal, get LV() { return LV; } }; // 試験用の窓口
+window.__roastlog = { S, Sources, updateGauges, drawLive, Dg, Cal, CfgS, show, get LV() { return LV; } }; // 試験用の窓口
 (async () => {
   await Store.init();
   const data = await Store.loadAll();

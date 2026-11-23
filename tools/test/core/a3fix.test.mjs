@@ -52,6 +52,7 @@ async function startRoast(page, srv, name = 'x') {
 }
 const firstNN = a => a.findIndex(x => x != null);
 // 最初の値が来た秒から end まで、gaps の外にある null の秒（本当の欠損）を数える
+const dump = (d, key) => JSON.stringify({ start: d.start, gaps: d.gaps, head: d[key].slice(0, 45), clk: d.clk });
 const holes = (d, key, end) => { const a = d[key], f = firstNN(a), out = []; for (let i = f; i < (end == null ? a.length : end); i++) { const t = d.start + i; if (a[i] == null && !(d.gaps || []).some(g => t >= g.from && t <= g.to)) out.push(t); } return out; };
 
 test('重-1: 切断中に排出 → 機器から残りを受け取り、タップした時点まで埋まる（捨てない）', { timeout: 120000 }, async () => {
@@ -88,9 +89,9 @@ test('重-1: 15 秒たっても受け取れなかった分は gaps に入る（�
   const { ctx, page, errors } = await open(srv.url);
   await startRoast(page, srv, '長い切断');
   await waitFor(async () => (await D(page)).lastT > 120, 't>120', 40000);
-  const last = (await D(page)).lastT;
   await srv.api('/api/sim/disconnect?sec=900');   // 実時間で 45 秒切れたまま
   await waitFor(async () => (await page.textContent('#connRow')).includes('再接続'), '切断を検知');
+  const last = (await D(page)).lastT;
   await sleep(700);
   await page.click('[data-ev="drop"]'); await page.click('.overlay [data-r="1"]');
   await page.waitForSelector('#flowBanner [data-fb="dropwait"]', { timeout: 5000 });
@@ -207,7 +208,7 @@ test('中-7: s が bf より先に届いても欠損なし。bf の外れ値除�
 
 test('再起動: 新しい起動の分がバックフィルで埋まる（gaps は止まっていた間だけ）。再読み込みしても時刻はつながる（seq で数える）', { timeout: 150000 }, async () => {
   const srv = await sim([...BASE, '--bf-delay', '600']);
-  const { ctx, page, errors } = await open(srv.url);
+  const { ctx, page, errors, frames } = await open(srv.url);
   await startRoast(page, srv, '再起動と再読み込み');
   await waitFor(async () => (await D(page)).lastT > 60, 't>60', 40000);
   const bid0 = (await srv.api('/api/sim/state')).bootId;
@@ -220,8 +221,8 @@ test('再起動: 新しい起動の分がバックフィルで埋まる（gaps �
   let d = await D(page);
   const gsum = d.gaps.reduce((a, g) => a + g.to - g.from + 1, 0);
   assert.ok(gsum >= 1 && gsum <= 10, `gaps は止まっていた間だけ: ${JSON.stringify(d.gaps)}`);
-  assert.deepEqual(holes(d, 'c1', d.n - 2), [], '新起動の分はバックフィルで埋まる（gaps の外に欠損なし）');
-  assert.deepEqual(holes(d, 'c2', d.n - 2), []);
+  assert.deepEqual(holes(d, 'c1', d.n - 2), [], '新起動の分はバックフィルで埋まる（gaps の外に欠損なし）' + dump(d, 'c1'));
+  assert.deepEqual(holes(d, 'c2', d.n - 2), [], dump(d, 'c2') + ' his=' + frames.filter(f => f.type === 'hi').length);
   const k = d.clk[1], seq = (await srv.api('/api/sim/state')).seq;
   assert.ok(Math.abs(d.lastT - (k.t0 + seq - k.seq0)) <= 4, `時刻は seq で数える lastT=${d.lastT} 期待 ${k.t0 + seq - k.seq0}`);
   // 再読み込み
@@ -303,9 +304,9 @@ test('中-4: RoR ゲージ。ドラムは中点まで「—」、手網は窓が
   await sleep(1000);
   assert.equal(await page.textContent('#gRor'), '—'); assert.match(await page.textContent('#gRorNote'), /中点のあと表示/);
   await page.screenshot({ path: path.join(shots, 'ror-drum-before-tp.png') });
-  const temps = new Set();
-  for (let i = 0; i < 25; i++) { const t = await page.textContent('#gTemp'); assert.match(t, /^\d+\.\d℃$/, '温度は小数 1 桁: ' + t); temps.add(t.replace(/\d/g, '9').length); await sleep(120); }
-  assert.equal(temps.size, 1, '桁数が変わらない（幅が揺れない）' + [...temps]);
+  const widths = new Set();
+  for (let i = 0; i < 25; i++) { const t = await page.textContent('#gTemp'); assert.match(t, /^\d+\.\d℃$/, '温度は小数 1 桁（200℃ ちょうどでも 200.0）: ' + t); widths.add(Math.round((await page.locator('#gTemp').boundingBox()).width)); await sleep(120); }
+  assert.equal(widths.size, 1, '温度の欄の幅が揺れない ' + [...widths]);
   await waitFor(async () => (await D(page)).ev.some(e => e.type === 'tp'), '中点', 60000);
   await waitFor(async () => /^-?\d+\.\d$/.test(await page.textContent('#gRor')), 'RoR の数字');
   const note = await page.textContent('#gRorNote'); assert.match(note, /RoR (上昇中|下降中|横ばい)|急上昇|急降下/);
@@ -345,7 +346,7 @@ test('中-5・取り消し: 操作つきのお知らせはゲージの直上の�
   await waitFor(async () => (await D(page)).lastT > 40, 't>40');
   await page.click('[data-ev="fc1"]'); const tb = await page.locator('.toast').first().boundingBox(); assert.ok(tb.y < 100, 'トーストは上端: y=' + tb.y);
   // 投入を取り消す → 再読み込み → やり直す
-  await page.click('[data-action="undo"]'); await page.click('.overlay [data-r="1"]');   // 1ハゼ（event）の取り消し
+  await page.click('[data-action="undo"]'); await sleep(200);   // 1ハゼ（event）の取り消し（確認なし）
   await page.click('[data-action="undo"]'); await page.click('.overlay [data-r="1"]');   // 投入の取り消し
   await waitFor(async () => (await D(page)).status === 'ready', '投入前に戻る');
   await page.waitForSelector('#flowBanner [data-fb-act="redo"]');
@@ -435,7 +436,7 @@ test('軽: 校正の外れ値除去（calClean）。1〜2 個のはずれ値は�
   const k = C.calClean(withOut); assert.equal(k.length, 8); assert.ok(C.calStats(k).sd < 0.3, '除けば安定');
   const ramp = [21, 24, 27, 30, 33, 33.1, 33, 33.05, 33, 33.02];
   const kr = C.calClean(ramp); assert.ok(kr.length < 8, '温度が動いている測定は、除いても 8 個残らない（不安定）');
-  assert.deepEqual(C.calClean([21, null, 21.1]), [21, 21.1]);
+  assert.deepEqual([...C.calClean([21, null, 21.1])], [21, 21.1]);
 });
 
 test('軽: https・file:// では ESP32 を選べず、診断・校正・チャンネル欄は「機器から配信されたページでのみ使えます」。保存ボタンは 1 つ。「シミュレーター」は折り返さない', async () => {
@@ -467,4 +468,48 @@ test('軽: https・file:// では ESP32 を選べず、診断・校正・チャ�
   const lines = await p2.evaluate(() => { const b = [...document.querySelectorAll('#sConn button')].find(x => x.textContent.includes('シミュレーター')); const r = document.createRange(); r.selectNodeContents(b); return r.getClientRects().length; });
   assert.equal(lines, 1, '「シミュレーター」は折り返さない');
   await ctx.close();
+});
+
+test('MAX31855: 機器パネルの 50/60Hz・平均化は隠れ、setcfg に amp を入れない。GND短絡の案内に接地型プローブ', { timeout: 90000 }, async () => {
+  const srv = await sim([...BASE, '--amp', 'max31855']);
+  const { ctx, page, errors, frames } = await open(srv.url);
+  await page.locator('[data-action="go"][data-to="settings"]:visible').first().click();
+  await waitFor(() => page.evaluate(() => { const s = window.__roastlog.Sources.active; return s.id === 'esp32' && !!s.info && s.info.amp === 'max31855'; }), 'hello(max31855)');
+  await waitFor(async () => await page.isVisible('#ampNote'), 'MAX31855 の案内');
+  assert.match(await page.textContent('#ampNote'), /MAX31855.*設定できません/);
+  assert.equal(await page.isVisible('#sMains'), false); assert.equal(await page.isVisible('#sAvg'), false); assert.equal(await page.isVisible('[data-action="save-device"]'), false);
+  await page.locator('#pDev').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(shots, 'device-max31855.png') });
+  // 隠れていても、呼ばれたら送らない
+  const n0 = frames.length; await page.evaluate(() => document.querySelector('[data-action="save-device"]').click()); await sleep(400);
+  assert.equal(frames.slice(n0).filter(f => f.type === 'setcfg').length, 0, 'amp の setcfg を送らない');
+  // チャンネルの保存は通る（amp を含めない）
+  await page.fill('#chOff1', '0.7'); const n1 = frames.length; await page.click('#chSave');
+  await waitFor(async () => (await srv.api('/api/sim/state')).cfg.channels[1].offset === 0.7, 'チャンネルは保存できる');
+  const sc = frames.slice(n1).find(f => f.type === 'setcfg'); assert.ok(sc && !('amp' in sc), 'setcfg に amp がない');
+  // 診断: GND短絡 → 接地型プローブの案内
+  await page.locator('[data-view="settings"] [data-action="go"][data-to="diag"]').first().click();
+  await srv.api('/api/sim/fault?ch=c1&kind=gnd&sec=30');
+  await waitFor(async () => (await page.textContent('#dgFinds')).includes('GND短絡'), 'GND短絡');
+  assert.match(await page.textContent('#dgFinds'), /CH1: GND短絡（F2）.*接地型プローブ（先端が金属の管に溶接されているもの）.*非接地型を使って/);
+  assert.match(await page.textContent('[data-view="diag"]'), /接地型プローブ/);
+  await page.screenshot({ path: path.join(shots, 'diag-gnd-short-max31855.png'), fullPage: true });
+  assert.deepEqual(errors, []); await ctx.close();
+});
+
+test('despike: 保留した跳びが、次の普通の値の近くで落ち着いたら、保留した値を返す（本物の下がり）。単発の外れ値は捨てる', async () => {
+  const html = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
+  const src = html.slice(html.indexOf('// @core-begin'), html.indexOf('// @core-end'));
+  const ctx = { window: {} }; ctx.globalThis = ctx; vm.createContext(ctx); vm.runInContext(src, ctx);
+  const C = ctx.window.RoastCore;
+  // ET が投入で 14℃ 下がる: 228.5..229.9 → 215.4, 216.0, 216.9（3 点目は中央値から 12℃ 以内）
+  const run = xs => { const prev5 = [], st = { pend: [] }, out = [], back = []; xs.forEach(x => { out.push(C.despike(prev5, x, st, 12)); back.push(st.confirmed ? [...st.confirmed] : null); st.confirmed = null; }); return { out, back }; };
+  const r = run([228.5, 228.9, 229.0, 229.9, 228.9, 215.4, 216.0, 216.9, 217.3]);
+  assert.deepEqual(r.out.slice(5, 7), [null, null], '跳びの最初の 2 点はいったん保留');
+  assert.equal(r.out[7], 216.9); assert.deepEqual(r.back[7], [215.4, 216.0], '落ち着いたら保留した値を返す');
+  // 3 点続けて確かめた場合も返す
+  const r2 = run([200, 200.2, 200.1, 200.3, 200.2, 170, 168, 166, 165]);
+  assert.equal(r2.out[7], 166); assert.deepEqual(r2.back[7], [170, 168]);
+  // 単発の外れ値（+40℃）は返さない
+  const r3 = run([150, 150.1, 150.2, 150.3, 150.4, 190, 150.6, 150.7]);
+  assert.equal(r3.out[5], null); assert.equal(r3.back[6], null); assert.equal(r3.out[6], 150.6);
 });

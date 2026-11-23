@@ -235,3 +235,72 @@ test('conformance.mjs が sim サーバ（--speed 20）に対して通る', asyn
     assert.match(out, /# \d+\/\d+ passed/);
   } finally { await srv.close(); }
 });
+
+test('9.5 送る順番: hi{lastSeq} の接続では hello → bf をすべて → s。--bf-delay（試験用）では s が先になる', async () => {
+  const srv = await startServer({ port: 0, host: '127.0.0.1', speed: SPEED, quiet: true });
+  try {
+    await sleep(4000); // 400 サンプル（bf は 2 フレーム）
+    const c = await connect(srv.wsUrl, { bootId: srv.bootId, lastSeq: 3 });
+    await until(() => ss(c).length >= 3);
+    const ty = c.log.map(m => m.type).filter(t => t !== 'st');
+    const ih = ty.indexOf('hello'), lb = ty.lastIndexOf('bf'), fs = ty.indexOf('s');
+    assert.ok(ih === 0 && ty.filter(t => t === 'bf').length >= 2 && fs > lb, '順番: ' + ty.slice(0, 6).join(','));
+    c.ws.close();
+  } finally { await srv.close(); }
+  const s2 = await startServer({ port: 0, host: '127.0.0.1', speed: SPEED, quiet: true, bfDelay: 300 });
+  try {
+    await sleep(500);
+    const c = await connect(s2.wsUrl, { bootId: s2.bootId, lastSeq: 3 });
+    await until(() => c.log.some(m => m.type === 'bf'));
+    const ty = c.log.map(m => m.type); assert.ok(ty.indexOf('s') < ty.indexOf('bf'), '--bf-delay では s が bf より先: ' + ty.slice(0, 6).join(','));
+    c.ws.close();
+  } finally { await s2.close(); }
+});
+
+test('9.5 cfg.rev と setcfg{baseRev}: 変更で +1、古い baseRev は stale（何も変えない）、baseRev なしは従来どおり受け付ける', async () => {
+  const srv = await startServer({ port: 0, host: '127.0.0.1', speed: SPEED, quiet: true });
+  try {
+    const a = await connect(srv.wsUrl, {});
+    const h = await until(() => a.log.find(m => m.type === 'hello')); const r0 = h.cfg.rev;
+    assert.ok(Number.isInteger(r0)); assert.deepEqual(validateWs(h), []);
+    a.ws.send(JSON.stringify({ type: 'setcfg', id: 'a', baseRev: r0, channels: [{ idx: 1, offset: -1 }] }));
+    const ack = await until(() => a.log.find(m => m.type === 'ack' && m.id === 'a')); assert.equal(ack.ok, true); assert.equal(ack.rev, r0 + 1);
+    const cfg = await until(() => a.log.find(m => m.type === 'cfg')); assert.equal(cfg.rev, r0 + 1); assert.deepEqual(validateWs(cfg), []);
+    a.ws.send(JSON.stringify({ type: 'setcfg', id: 'b', baseRev: r0, channels: [{ idx: 0, name: 'zz' }] }));
+    const nak = await until(() => a.log.find(m => m.type === 'ack' && m.id === 'b'));
+    assert.deepEqual({ ok: nak.ok, err: nak.err, rev: nak.rev }, { ok: false, err: 'stale', rev: r0 + 1 }); assert.deepEqual(validateWs(nak), []);
+    const st = await fetch(srv.url + '/api/sim/state').then(r => r.json()); assert.equal(st.cfg.channels[0].name, '豆温度'); assert.equal(st.cfg.channels[1].offset, -1);
+    a.ws.send(JSON.stringify({ type: 'setcfg', id: 'c', channels: [{ idx: 0, name: 'yy' }] }));
+    assert.equal((await until(() => a.log.find(m => m.type === 'ack' && m.id === 'c'))).ok, true);
+    a.ws.close();
+  } finally { await srv.close(); }
+});
+
+test('--amp max31855: hello・/api/info の amp。setcfg の amp は unsupported（channels だけなら受け付ける）。--room-temp は室温のまま', async () => {
+  assert.throws(() => parseArgs(['--amp', 'max9999']));
+  const srv = await startServer({ port: 0, host: '127.0.0.1', speed: SPEED, quiet: true, amp: 'max31855', roomTemp: 22 });
+  try {
+    const info = await fetch(srv.url + '/api/info').then(r => r.json()); assert.equal(info.amp, 'max31855');
+    const a = await connect(srv.wsUrl, {});
+    const h = await until(() => a.log.find(m => m.type === 'hello')); assert.equal(h.amp, 'max31855'); assert.equal(h.cfg.amp.type, 'max31855');
+    a.ws.send(JSON.stringify({ type: 'setcfg', id: 'u', amp: { mains: 60 } }));
+    const nak = await until(() => a.log.find(m => m.type === 'ack' && m.id === 'u')); assert.equal(nak.ok, false); assert.equal(nak.err, 'unsupported');
+    a.ws.send(JSON.stringify({ type: 'setcfg', id: 'v', channels: [{ idx: 0, offset: 0.5 }], amp: { avg: 8 } }));
+    assert.equal((await until(() => a.log.find(m => m.type === 'ack' && m.id === 'v'))).err, 'unsupported', 'amp を含むと全体を受け付けない');
+    a.ws.send(JSON.stringify({ type: 'setcfg', id: 'w', channels: [{ idx: 0, offset: 0.5 }] }));
+    assert.equal((await until(() => a.log.find(m => m.type === 'ack' && m.id === 'w'))).ok, true);
+    await until(() => ss(a).length > 5);
+    for (const s of ss(a).slice(-4)) { assert.ok(Math.abs(s.v[0] / 10 - 22.5) < 0.3 && Math.abs(s.v[1] / 10 - 22) < 0.3, '室温のまま ' + s.v); assert.ok(Math.abs(s.cj / 10 - 24.3) < 0.2); }
+    a.ws.close();
+  } finally { await srv.close(); }
+});
+
+test('conformance.mjs が sim サーバ（--amp max31855）にも通る', async () => {
+  const srv = await startServer({ port: 0, host: '127.0.0.1', speed: 20, quiet: true, amp: 'max31855' });
+  try {
+    const p = spawn(process.execPath, [path.join(ROOT, 'tools/test/proto/conformance.mjs'), '--url', srv.wsUrl, '--skip-reboot'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = ''; p.stdout.on('data', d => out += d); p.stderr.on('data', d => out += d);
+    const code = await new Promise(r => p.on('close', r));
+    assert.equal(code, 0, out); assert.match(out, /ok \d+ - MAX31855: setcfg の amp は ack\{ok:false, err:"unsupported"\}/);
+  } finally { await srv.close(); }
+});

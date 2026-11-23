@@ -67,6 +67,7 @@ const mustValid = m => { const e = validateWs(m); assert(e.length === 0, `schema
     hello0 = m; speed = m.speed || 1; tickMs = 1000 / speed;
     assert(m.chMax <= 3 && m.cfg.channels.length === 3, 'channels は 3 要素');
     assert(m.bufFrom <= m.seq + 1, 'bufFrom <= seq+1');
+    assert(Number.isInteger(m.cfg.rev) && m.cfg.rev >= 0, 'hello.cfg.rev（設定の版番号, 9.5）が無い');
   });
   if (!hello0) { console.log('Bail out! hello が無いので続行できません'); process.exit(1); }
   console.log(`# bootId=${hello0.bootId} seq=${hello0.seq} speed=${speed} amp=${hello0.amp}`);
@@ -181,6 +182,34 @@ const mustValid = m => { const e = validateWs(m); assert(e.length === 0, `schema
     await A.waitFor(x => x.type === 'ack' && x.id === 'c-off2' && x.ok, 2000, k0, 'ack');
   });
 
+  await test('cfg.rev: 設定を変えるたびに +1。setcfg{baseRev} が古ければ ack{ok:false, err:"stale", rev} で、何も変えない（9.5）', async () => {
+    const R = await new Conn(URL_WS).open(); R.send({ type: 'hi', app: 'roastlog', ver: 'conformance-rev', bootId: null, lastSeq: null }); // 今の rev を新しい接続の hello で読む
+    const h = (await R.waitFor(x => x.type === 'hello', 3000, 0, 'hello')).m; R.close(); const r0 = h.cfg.rev, name0 = h.cfg.channels[0].name;
+    let k0 = A.log.length;
+    A.send({ type: 'setcfg', id: 'r1', baseRev: r0, channels: [{ idx: 0, name: 'rev-test' }] });
+    const a1 = (await A.waitFor(x => x.type === 'ack' && x.id === 'r1', 2000, k0, 'ack')).m; mustValid(a1);
+    assert(a1.ok === true, 'baseRev が今の rev なら受け付ける');
+    const c1 = (await A.waitFor(x => x.type === 'cfg', 2000, k0, 'cfg')).m; mustValid(c1);
+    assert(c1.rev === r0 + 1, `rev が +1 されていない ${c1.rev} != ${r0 + 1}`);
+    k0 = A.log.length;
+    A.send({ type: 'setcfg', id: 'r2', baseRev: r0, channels: [{ idx: 0, name: 'stale-test' }] });
+    const a2 = (await A.waitFor(x => x.type === 'ack' && x.id === 'r2', 2000, k0, 'ack')).m; mustValid(a2);
+    assert(a2.ok === false && a2.err === 'stale' && a2.rev === r0 + 1, `古い baseRev は stale + 今の rev: ${JSON.stringify(a2)}`);
+    await sleep(300);
+    assert(!A.log.slice(k0).some(x => x.type === 'cfg'), 'stale なのに cfg が送られた（変更された）');
+    k0 = A.log.length;
+    A.send({ type: 'setcfg', id: 'r3', baseRev: r0 + 1, channels: [{ idx: 0, name: name0 }] }); // 戻す
+    await A.waitFor(x => x.type === 'ack' && x.id === 'r3' && x.ok, 2000, k0, 'ack');
+  });
+
+  if (hello0.amp === 'max31855') await test('MAX31855: setcfg の amp は ack{ok:false, err:"unsupported"}', async () => {
+    const k0 = A.log.length;
+    A.send({ type: 'setcfg', id: 'u1', amp: { mains: 60 } });
+    const a = (await A.waitFor(x => x.type === 'ack' && x.id === 'u1', 2000, k0, 'ack')).m; mustValid(a);
+    assert(a.ok === false && a.err === 'unsupported', JSON.stringify(a));
+  });
+  else skip('MAX31855: setcfg の amp は unsupported', `amp=${hello0.amp}`);
+
   await test('identify に ack が返る', async () => {
     const k0 = A.log.length;
     A.send({ type: 'identify', id: 'i1' });
@@ -210,7 +239,10 @@ const mustValid = m => { const e = validateWs(m); assert(e.length === 0, `schema
       const missing = [];
       for (let s = lastSeq + 1; s <= hi; s++) if (!got.has(s)) missing.push(s);
       assert(missing.length === 0, `欠損あり: ${missing.slice(0, 10).join(',')}（${missing.length} 件）`);
-      for (const m of B.log) if (m.type === 'bf') assert(m.from === lastSeq + 1, `bf の from が lastSeq+1 ではない (${m.from})`);
+      for (const m of B.log) if (m.type === 'bf') assert(m.from === lastSeq + 1 || B.log.some(x => x.type === 'bf' && x.to + 1 === m.from), `bf の from が lastSeq+1（または前の bf の続き）ではない (${m.from})`);
+      // 9.5: 送る順番は hello → bf をすべて → s
+      const ih = B.log.findIndex(x => x.type === 'hello'), lastBf = B.log.map(x => x.type).lastIndexOf('bf'), firstS = B.log.findIndex(x => x.type === 's');
+      assert(ih >= 0 && lastBf > ih && firstS > lastBf, `順番が hello → bf → s ではない（hello ${ih}, 最後の bf ${lastBf}, 最初の s ${firstS}）`);
       console.log(`# 補完 ${lastSeq + 1}..${hi}（${hi - lastSeq} 件）欠損 0`);
     } finally { B.close(); }
   });

@@ -20,7 +20,7 @@ const FW = '0.0.0-sim';
 export function parseArgs(argv) {
   const a = {
     port: 8787, host: '0.0.0.0', speed: 1, profile: 'drum', seed: 1, chargeAt: 40, noise: 0.3, outlierP: undefined,
-    disconnect: [], fault: [], rebootAt: [], quiet: false, bfDelay: 0, roomTemp: null,
+    disconnect: [], fault: [], rebootAt: [], quiet: false, bfDelay: 0, roomTemp: null, amp: 'max31856',
   };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
@@ -41,6 +41,7 @@ export function parseArgs(argv) {
     }
     else if (k === '--reboot-at') a.rebootAt.push(+val());
     else if (k === '--bf-delay') a.bfDelay = +val();         // 試験用: hi のあとの bf を、実時間でこのミリ秒だけ遅らせる（s が bf より先に届く順番を作る。9.5 では本来 hello → bf → s）
+    else if (k === '--amp') { a.amp = val(); if (!['max31855', 'max31856'].includes(a.amp)) throw new Error('--amp は max31855 か max31856 です'); }   // MAX31855 は電源周波数・平均化を設定できない（setcfg の amp は unsupported）
     else if (k === '--room-temp') a.roomTemp = +val();        // 試験用: 全チャンネルが室温のまま（焙煎していない）。センサー診断の試験に使う
     else if (k === '--quiet') a.quiet = true;
     else if (k === '--help' || k === '-h') { a.help = true; }
@@ -50,13 +51,13 @@ export function parseArgs(argv) {
 }
 
 const hex8 = () => Math.floor(Math.random() * 0x100000000).toString(16).padStart(8, '0');
-const DEFAULT_CFG = () => ({
+const DEFAULT_CFG = amp => ({
   channels: [
     { idx: 0, enabled: true, role: 'bt', name: '豆温度', color: '#C2410C', offset: 0 },
     { idx: 1, enabled: true, role: 'et', name: '排気', color: '#7A5AA6', offset: 0 },
     { idx: 2, enabled: false, role: 'off', name: '', color: '#6B7280', offset: 0 },
   ],
-  amp: { type: 'sim', mains: 50, avg: 4 },
+  amp: { type: amp || 'max31856', mains: 50, avg: 4 },
   rateHz: 1,
 });
 const ROLES = ['bt', 'et', 'amb', 'inlet', 'off'];
@@ -73,7 +74,7 @@ export function startServer(opts = {}) {
   const pinches = [];                 // 指でつまむ（試験・診断画面用）: 仮想秒 from〜to のあいだ、値を delta まで滑らかに上げる
   let lastCfgMsg = null;
   const deviceId = 'a4cf' + (Math.floor(Math.random() * 256)).toString(16).padStart(2, '0');
-  let cfg = DEFAULT_CFG();
+  let cfg = DEFAULT_CFG(o.amp);
   let rev = 1;                        // 設定の版番号（9.5）。設定が変わるたびに +1
   let bootId = hex8();
   let seq = 0;                        // 最新サンプルの seq（最初のサンプルが 1）
@@ -119,7 +120,7 @@ export function startServer(opts = {}) {
 
   function helloMsg() {
     return {
-      type: 'hello', proto: 1, fw: FW, model: 'RL-SIM', amp: 'sim', id: deviceId, bootId,
+      type: 'hello', proto: 1, fw: FW, model: 'RL-SIM', amp: o.amp, id: deviceId, bootId,
       ms: msOf(seq), seq, bufFrom: bufFrom(), rateHz: 1, chMax: 3, speed,
       cfg: { ...structuredClone(cfg), rev },
     };
@@ -149,6 +150,7 @@ export function startServer(opts = {}) {
   function applyCfg(m) {
     // 部分更新可。不正なら ok:false（何も変更しない）。baseRev が今の rev と違えば 'stale'（9.5）
     staleRev = null;
+    if (m.amp !== undefined && o.amp === 'max31855') return 'unsupported';   // MAX31855 には電源周波数・平均化の設定がない
     if (m.baseRev !== undefined && m.baseRev !== rev) { staleRev = rev; return 'stale'; }
     const next = structuredClone(cfg);
     if (m.channels !== undefined) {
@@ -227,7 +229,7 @@ export function startServer(opts = {}) {
         res.end(buf);
       });
     } else if (url.pathname === '/api/info') {
-      json(res, 200, { proto: 1, fw: FW, model: 'RL-SIM', amp: 'sim', id: deviceId, bootId, mode: 'sta', ip: '127.0.0.1', host: req.headers.host || 'localhost', sim: true });
+      json(res, 200, { proto: 1, fw: FW, model: 'RL-SIM', amp: o.amp, id: deviceId, bootId, mode: 'sta', ip: '127.0.0.1', host: req.headers.host || 'localhost', sim: true });
     } else if (url.pathname === '/api/sim/truth') {
       // 9.4: 時刻は seq と同じ数え方（最初のサンプルが 1）。モデル秒そのものは modelTruth
       const mt = model.truth(), base = kBase == null ? model.k : kBase, sq = x => (x == null ? null : x - base + 1);
@@ -256,7 +258,7 @@ export function startServer(opts = {}) {
       json(res, 200, { ok: true });
     } else if (url.pathname === '/api/sim/state') {
       // 試験用: 設定・identify・最後の setcfg を見る
-      json(res, 200, { cfg, identifiedAt, identifyCount, lastSetcfg: lastCfgMsg, seq, bootId, virtualSec, clients: clients.size });
+      json(res, 200, { cfg: { ...cfg, rev }, identifiedAt, identifyCount, lastSetcfg: lastCfgMsg, seq, bootId, virtualSec, clients: clients.size });
     } else if (url.pathname === '/api/sim/control') {
       const fire = url.searchParams.get('fire'), damper = url.searchParams.get('damper');
       pendingCtrl = {};
@@ -347,7 +349,7 @@ if (isMain) {
   let args;
   try { args = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); process.exit(2); }
   if (args.help) {
-    console.log('使い方: node tools/sim/server.mjs [--port 8787] [--speed 1] [--profile drum|tenami] [--seed 1] [--charge-at 40|none]\n  [--noise 0.3] [--outlier-p 0] [--disconnect 300:20] [--fault c2:open@400-420] [--reboot-at 500] [--bf-delay 800] [--room-temp 22] [--quiet]');
+    console.log('使い方: node tools/sim/server.mjs [--port 8787] [--speed 1] [--profile drum|tenami] [--seed 1] [--charge-at 40|none]\n  [--noise 0.3] [--outlier-p 0] [--disconnect 300:20] [--fault c2:open@400-420] [--reboot-at 500] [--bf-delay 800] [--room-temp 22] [--amp max31856|max31855] [--quiet]');
     process.exit(0);
   }
   startServer(args).catch(e => { console.error(e.message); process.exit(1); });
