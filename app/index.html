@@ -1,0 +1,1481 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>焙煎記録ノート</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap"></noscript>
+<style>
+/* Layout: one-column phone instrument panel. Big numerals on top, keypad within thumb reach, records below. */
+:root {
+  --bg: #EEF0EB;        /* green-coffee grey */
+  --surface: #FFFFFF;
+  --ink: #1D1915;       /* roasted dark */
+  --muted: #69635B;
+  --line: #D6D6CE;
+  --key: #E3E4DD;
+  --accent: #2E5B4C;    /* coffee-leaf green: primary actions */
+  --accent-ink: #FFFFFF;
+  --temp: #C2410C;      /* exhaust temperature line */
+  --ror: #3554A5;       /* rate of rise line */
+  --warn: #A85A00;
+  --danger: #B42318;
+  --flash: #FFE7C2;
+  --font-num: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-head: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  --font-body: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12110E; --surface: #1D1B17; --ink: #F2EEE7; --muted: #A49D93; --line: #37332D; --key: #2A2722;
+    --accent: #7DBFA5; --accent-ink: #0D1A15; --temp: #F28046; --ror: #93ABF2; --warn: #F0A848; --danger: #F07167; --flash: #4A3410;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12110E; --surface: #1D1B17; --ink: #F2EEE7; --muted: #A49D93; --line: #37332D; --key: #2A2722;
+  --accent: #7DBFA5; --accent-ink: #0D1A15; --temp: #F28046; --ror: #93ABF2; --warn: #F0A848; --danger: #F07167; --flash: #4A3410;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 40px;
+}
+.app { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+h1, h2, h3 { font-family: var(--font-head); font-weight: 700; margin: 0; text-wrap: balance; line-height: 1.3; }
+h1 { font-size: 22px; }
+h2 { font-size: 18px; }
+h3 { font-size: 15px; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.label { font-size: 12px; letter-spacing: .06em; color: var(--muted); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spread { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--ror); outline-offset: 2px; }
+.btn { background: var(--key); padding: 10px 14px; border-radius: 10px; font-weight: 600; min-height: 44px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.btn.ghost { background: transparent; border: 1px solid var(--line); }
+.btn.big { width: 100%; font-size: 18px; min-height: 56px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.link { background: none; color: var(--accent); text-decoration: underline; padding: 4px 0; font-weight: 600; }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-height: 42px; }
+textarea { min-height: 72px; resize: vertical; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 360px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+
+/* top bar */
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.brand { display: flex; flex-direction: column; }
+.brand small { color: var(--muted); font-size: 12px; letter-spacing: .08em; }
+.mode-chip { font-size: 12px; padding: 3px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+
+/* history */
+.roast-item { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; width: 100%; }
+.roast-item .name { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.roast-item svg { grid-row: span 2; align-self: center; }
+.roast-item .meta { font-size: 13px; color: var(--muted); }
+.tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--key); color: var(--muted); margin-left: 6px; vertical-align: 2px; }
+.banner { background: var(--flash); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+/* roasting */
+.gauges { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; transition: background .2s; }
+.gauges.flash { background: var(--flash); }
+.gauge { display: flex; flex-direction: column; min-width: 0; }
+.gauge .v { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 40px; line-height: 1; white-space: nowrap; }
+.gauge .v small { font-size: 18px; font-weight: 500; margin-left: 2px; }
+.gauge.time .v { font-size: 48px; }
+.gauge.temp .v { color: var(--temp); }
+.gauge.ror .v { color: var(--ror); }
+.gauge.ror.flick .v, .gauge.ror.crash .v { color: var(--warn); }
+.ror-note { font-size: 12px; color: var(--warn); font-weight: 700; min-height: 1em; }
+.countdown { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.bar { flex: 1; height: 6px; background: var(--key); border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.chart-box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px; }
+canvas.chart { width: 100%; height: 200px; display: block; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); padding: 2px 6px 0; flex-wrap: wrap; }
+.legend .lg { background: none; color: inherit; font: inherit; padding: 4px 2px; min-height: 0; }
+.legend .lg.off { opacity: .4; text-decoration: line-through; }
+.legend b { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+
+.keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.kp-display { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; min-height: 56px; }
+.kp-display .v { font-family: var(--font-num); font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.key { background: var(--key); border-radius: 10px; min-height: 52px; font-family: var(--font-num); font-size: 26px; font-weight: 600; }
+.key.wide { grid-column: span 2; }
+.key.enter { background: var(--accent); color: var(--accent-ink); grid-row: span 2; font-family: var(--font-body); font-size: 18px; }
+.key.fn { font-family: var(--font-body); font-size: 15px; }
+.key:active, .ev:active, .seg button:active { transform: scale(.97); }
+
+.events { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ev { background: var(--key); border-radius: 10px; min-height: 56px; padding: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; line-height: 1.2; }
+.ev small { font-family: var(--font-num); font-size: 15px; font-weight: 500; color: var(--muted); }
+.ev.done { background: var(--surface); border: 2px solid var(--accent); }
+.ev.drop { background: var(--danger); color: #fff; }
+.ev.drop small { color: rgba(255,255,255,.85); }
+.start-btn { width: 100%; min-height: 72px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font-size: 22px; font-weight: 700; font-family: var(--font-head); }
+
+.ctrl { display: flex; flex-direction: column; gap: 6px; }
+.ctrl-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.seg { display: grid; gap: 4px; grid-auto-flow: column; grid-auto-columns: 1fr; }
+.seg button { background: var(--key); border-radius: 8px; min-height: 46px; font-weight: 700; padding: 4px 2px; }
+.seg button.on { background: var(--accent); color: var(--accent-ink); }
+.knob { width: auto; min-height: 34px; padding: 4px 8px; font-size: 13px; }
+
+/* detail */
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.stat { background: var(--surface); padding: 10px 12px; display: flex; flex-direction: column; }
+.stat .v { font-family: var(--font-num); font-size: 28px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.timeline li { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+.timeline li:last-child { border-bottom: 0; }
+.timeline li.multi { grid-template-columns: 52px 1fr; }
+.timeline li.multi .r { grid-column: 2; font-size: 13px; }
+.timeline .t { font-family: var(--font-num); font-size: 17px; font-variant-numeric: tabular-nums; }
+.timeline .k { font-weight: 600; }
+.timeline .r { font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--muted); }
+.scale { display: grid; grid-template-columns: 4.5em 1fr 1.5em; gap: 10px; align-items: center; }
+.scale input { padding: 0; min-height: 30px; accent-color: var(--accent); background: transparent; border: 0; }
+.scale output { font-family: var(--font-num); font-size: 20px; text-align: right; }
+details.panel > summary { font-family: var(--font-head); font-weight: 700; cursor: pointer; list-style: none; }
+details.panel > summary::before { content: "＋ "; color: var(--muted); }
+details.panel[open] > summary::before { content: "－ "; }
+.table-wrap { overflow-x: auto; }
+table.edit { border-collapse: collapse; width: 100%; font-size: 14px; }
+table.edit th { text-align: left; font-weight: 600; font-size: 12px; color: var(--muted); padding: 4px; }
+table.edit td { padding: 3px 4px; border-top: 1px solid var(--line); }
+table.edit input { min-height: 36px; padding: 5px 7px; }
+table.edit .tcol { width: 5em; font-family: var(--font-num); font-size: 16px; }
+.bean-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.bean-item:last-child { border-bottom: 0; }
+.bean-item > div { min-width: 0; overflow-wrap: anywhere; }
+
+/* overlay + toast */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.sheet { background: var(--surface); border-radius: 16px; padding: 18px; width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 14px; }
+.sheet p { margin: 0; font-size: 17px; font-weight: 600; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 60; max-width: calc(100% - 32px); }
+.empty { text-align: center; padding: 28px 12px; color: var(--muted); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .key:active, .ev:active, .seg button:active { transform: none; } }
+</style>
+
+<div class="app" id="app">
+  <!-- HOME -->
+  <section data-view="home" class="stack">
+    <div class="topbar">
+      <div class="brand"><small>ROAST LOG</small><h1>焙煎記録ノート</h1></div>
+      <span class="mode-chip" id="modeChip">読み込み中</span>
+    </div>
+    <div id="resumeBox"></div>
+    <button class="btn primary big" data-action="new-roast">新しい焙煎をはじめる</button>
+    <div class="row">
+      <button class="btn ghost" data-action="go" data-to="beans">豆の管理</button>
+      <button class="btn ghost" data-action="go" data-to="settings">設定・バックアップ</button>
+    </div>
+    <div class="spread"><h2>焙煎履歴</h2><span class="small muted" id="histCount"></span></div>
+    <input id="search" type="search" placeholder="豆の名前・産地・メモで検索" aria-label="履歴を検索">
+    <div id="historyList" class="stack"></div>
+  </section>
+
+  <!-- SETUP -->
+  <section data-view="setup" class="stack" hidden>
+    <div class="spread"><h1>焙煎の準備</h1><button class="link" data-action="go" data-to="home">戻る</button></div>
+    <div class="panel">
+      <h3>豆</h3>
+      <div class="field"><label class="label" for="suBean">豆を選ぶ</label><select id="suBean"></select></div>
+      <div id="suNewBean" class="stack">
+        <div class="field"><label class="label" for="suBeanName">豆の名前</label><input id="suBeanName" placeholder="例：エチオピア イルガチェフェ G1"></div>
+        <div class="grid2">
+          <div class="field"><label class="label" for="suOrigin">産地</label><input id="suOrigin" placeholder="例：エチオピア"></div>
+          <div class="field"><label class="label" for="suProcess">精製方法</label><input id="suProcess" placeholder="例：ウォッシュト"></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="suGreen">生豆の重さ（g）</label><input id="suGreen" inputmode="decimal" placeholder="200"></div>
+        <div class="field"><label class="label" for="suDegree">目標の焙煎度</label><select id="suDegree"></select></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>開始時の設定</h3>
+      <div class="grid3">
+        <div class="field"><label class="label" for="suFire">火力</label><select id="suFire"></select></div>
+        <div class="field"><label class="label" for="suDamper">ダンパー</label><select id="suDamper"></select></div>
+        <div class="field"><label class="label" for="suRpm">回転数</label><select id="suRpm"></select></div>
+      </div>
+      <div class="field"><span class="label">温度入力のお知らせ間隔</span>
+        <div class="seg" id="suInterval"><button type="button" data-v="30">30秒</button><button type="button" data-v="60">1分</button></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>環境（任意）</h3>
+      <div class="grid2">
+        <div class="field"><label class="label" for="suRoom">室温（℃）</label><input id="suRoom" inputmode="decimal" placeholder="18"></div>
+        <div class="field"><label class="label" for="suWeather">天気</label><select id="suWeather"><option value="">—</option><option>晴れ</option><option>くもり</option><option>雨</option><option>雪</option></select></div>
+      </div>
+    </div>
+    <button class="btn primary big" data-action="to-roast">焙煎画面へ</button>
+  </section>
+
+  <!-- ROASTING -->
+  <section data-view="roast" class="stack" hidden>
+    <div class="spread">
+      <div class="small"><b id="rBean"></b> <span class="muted" id="rGreen"></span></div>
+      <button class="link" id="soundBtn" data-action="toggle-sound"></button>
+    </div>
+    <div class="gauges" id="gauges">
+      <div class="gauge time"><span class="label">経過</span><span class="v" id="gTime">0:00</span></div>
+      <div class="gauge temp"><span class="label">排気温度</span><span class="v" id="gTemp">—</span></div>
+      <div class="gauge ror" id="gRorBox"><span class="label">RoR ℃/分</span><span class="v" id="gRor">—</span><span class="ror-note" id="gRorNote"></span></div>
+    </div>
+    <div class="countdown" id="countdown"><span id="cdText">投入でタイマーが動き出します</span><div class="bar"><i id="cdBar"></i></div></div>
+    <div class="chart-box">
+      <canvas class="chart" id="liveChart" aria-label="排気温度とRoRのグラフ"></canvas>
+      <div class="legend" id="liveLegend"><span><b style="background:var(--temp)"></b>排気温度</span><span><b style="background:var(--ror)"></b>RoR</span></div>
+    </div>
+    <div class="keypad" id="keypad">
+      <div class="kp-display"><span class="label" id="kpHint">温度を入力</span><span class="v" id="kpVal">—</span></div>
+      <button class="key" data-k="7">7</button><button class="key" data-k="8">8</button><button class="key" data-k="9">9</button><button class="key fn" data-k="back" aria-label="1文字消す">⌫</button>
+      <button class="key" data-k="4">4</button><button class="key" data-k="5">5</button><button class="key" data-k="6">6</button><button class="key fn" data-k="undo">取消</button>
+      <button class="key" data-k="1">1</button><button class="key" data-k="2">2</button><button class="key" data-k="3">3</button><button class="key enter" data-k="enter" id="kpEnter">記録</button>
+      <button class="key wide" data-k="0">0</button><button class="key" data-k=".">.</button>
+    </div>
+    <div id="startArea"><button class="start-btn" data-action="charge">投入（スタート）</button><p class="small muted" style="margin:6px 0 0">投入時の排気温度を先に入力しておくと、0:00 の温度として記録されます。</p></div>
+    <div class="events" id="events"></div>
+    <div class="panel" id="controls"></div>
+    <button class="link" data-action="abort-roast" style="align-self:flex-start">この焙煎を中止する</button>
+  </section>
+
+  <!-- FINISH -->
+  <section data-view="finish" class="stack" hidden>
+    <h1>焙煎おつかれさまでした</h1>
+    <div class="stats" id="fStats"></div>
+    <div class="panel">
+      <div class="grid2">
+        <div class="field"><label class="label" for="fRoasted">焙煎後の重さ（g）</label><input id="fRoasted" inputmode="decimal" placeholder="170"></div>
+        <div class="field"><span class="label">目減り率</span><span class="num" style="font-size:28px" id="fLoss">—</span></div>
+      </div>
+      <div class="field"><label class="label" for="fDegree">焙煎度</label><select id="fDegree"></select></div>
+      <div class="field"><label class="label" for="fMemo">メモ</label><textarea id="fMemo" placeholder="気づいたこと、次回試したいこと"></textarea></div>
+    </div>
+    <button class="btn primary big" data-action="save-finish">記録を保存</button>
+  </section>
+
+  <!-- DETAIL -->
+  <section data-view="detail" class="stack" hidden>
+    <div class="spread"><button class="link" data-action="go" data-to="home">← 履歴</button><span class="small muted" id="dDate"></span></div>
+    <div><h1 id="dTitle"></h1><div class="small muted" id="dSub"></div></div>
+    <div class="stats" id="dStats"></div>
+    <div class="chart-box">
+      <canvas class="chart" id="detailChart" style="height:240px" aria-label="排気温度とRoRのグラフ"></canvas>
+      <div class="legend" id="detailLegend"><span><b style="background:var(--temp)"></b>排気温度</span><span><b style="background:var(--ror)"></b>RoR</span></div>
+    </div>
+    <div class="panel"><h3>イベントと設定変更</h3><ul class="timeline" id="dTimeline"></ul></div>
+    <div class="panel" id="dMemoBox"></div>
+    <div class="panel">
+      <h3>味の評価</h3>
+      <div id="dScales" class="stack"></div>
+      <div class="field"><label class="label" for="tMemo">味のメモ</label><textarea id="tMemo" placeholder="抽出方法、香り、後味など"></textarea></div>
+      <div class="field"><label class="label" for="tPair">お菓子との相性</label><textarea id="tPair" placeholder="例：フィナンシェと好相性。チーズケーキには少し軽い"></textarea></div>
+      <button class="btn primary" data-action="save-tasting">評価を保存</button>
+    </div>
+    <details class="panel" id="dEdit">
+      <summary>記録を修正する</summary>
+      <div class="grid2">
+        <div class="field"><label class="label" for="eGreen">生豆（g）</label><input id="eGreen" inputmode="decimal"></div>
+        <div class="field"><label class="label" for="eRoasted">焙煎後（g）</label><input id="eRoasted" inputmode="decimal"></div>
+      </div>
+      <div class="field"><label class="label" for="eDegree">焙煎度</label><select id="eDegree"></select></div>
+      <div class="field"><label class="label" for="eMemo">メモ</label><textarea id="eMemo"></textarea></div>
+      <div class="stack" id="eTempBox"></div>
+      <h3>イベント（分:秒）</h3>
+      <div class="table-wrap"><table class="edit" id="eEvents"></table></div>
+      <button class="btn primary" data-action="save-edit">修正を保存</button>
+    </details>
+    <div class="row">
+      <button class="btn ghost" data-action="csv-one">CSVで書き出す</button>
+      <button class="btn danger" data-action="delete-roast">この記録を削除</button>
+    </div>
+  </section>
+
+  <!-- BEANS -->
+  <section data-view="beans" class="stack" hidden>
+    <div class="spread"><h1>豆の管理</h1><button class="link" data-action="go" data-to="home">戻る</button></div>
+    <div class="panel">
+      <h3 id="bFormTitle">豆を登録</h3>
+      <div class="field"><label class="label" for="bName">豆の名前</label><input id="bName"></div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="bOrigin">産地</label><input id="bOrigin"></div>
+        <div class="field"><label class="label" for="bProcess">精製方法</label><input id="bProcess"></div>
+      </div>
+      <div class="field"><label class="label" for="bShop">購入先</label><input id="bShop"></div>
+      <div class="field"><label class="label" for="bMemo">メモ</label><textarea id="bMemo"></textarea></div>
+      <div class="row"><button class="btn primary" data-action="save-bean">保存</button><button class="btn ghost" data-action="clear-bean" id="bCancel" hidden>編集をやめる</button></div>
+    </div>
+    <div class="panel" id="beanList"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section data-view="settings" class="stack" hidden>
+    <div class="spread"><h1>設定・バックアップ</h1><button class="link" data-action="go" data-to="home">戻る</button></div>
+    <div class="panel">
+      <h3>焙煎機の段階</h3>
+      <div class="field"><label class="label" for="sFire">火力のボタン（「,」区切り）</label><input id="sFire"></div>
+      <div class="field"><label class="label" for="sDamper">ダンパーのボタン</label><input id="sDamper"></div>
+      <div class="field"><label class="label" for="sRpm">回転数のボタン</label><input id="sRpm"></div>
+    </div>
+    <div class="panel">
+      <h3>RoR の計算と注意表示</h3>
+      <div class="field"><span class="label">RoR の計算幅（この時間の温度上昇を1分あたりに換算）</span>
+        <div class="seg" id="sRorWindow"><button type="button" data-v="30">直近30秒</button><button type="button" data-v="60">直近1分</button></div>
+      </div>
+      <p class="small muted" style="margin:0">中点を過ぎたあと、RoR が前回の値からこれ以上変わったら色を変えて知らせます。</p>
+      <div class="grid2">
+        <div class="field"><label class="label" for="sFlick">急上昇（℃/分）</label><input id="sFlick" inputmode="decimal"></div>
+        <div class="field"><label class="label" for="sCrash">急降下（℃/分）</label><input id="sCrash" inputmode="decimal"></div>
+      </div>
+      <div class="field"><span class="label">お知らせ間隔の初期値</span>
+        <div class="seg" id="sInterval"><button type="button" data-v="30">30秒</button><button type="button" data-v="60">1分</button></div>
+      </div>
+      <button class="btn primary" data-action="save-settings">設定を保存</button>
+    </div>
+    <div class="panel">
+      <h3>バックアップ</h3>
+      <p class="small muted" style="margin:0" id="storageNote"></p>
+      <div class="row">
+        <button class="btn ghost" data-action="export-json">全データを書き出す</button>
+        <button class="btn ghost" data-action="csv-all">一覧をCSVで書き出す</button>
+      </div>
+      <div class="field"><label class="label" for="importFile">バックアップから読み込む（同じ記録は上書き）</label><input id="importFile" type="file" accept=".json,application/json"></div>
+      <div id="exportFallback" class="stack" hidden>
+        <p class="small muted" style="margin:0">ファイルとして保存できなかったため、下の内容をコピーして保存してください。</p>
+        <textarea id="exportText" readonly style="min-height:140px"></textarea>
+        <button class="btn ghost" data-action="copy-export">コピー</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ================= RoastCore: 純粋関数（DOM・状態に依存しない）================= */
+// @core-begin
+(function (G) {
+'use strict';
+const r1 = n => Math.round(n * 10) / 10;
+const DEF_CFG = { rorWindow: 60, rorWindowAuto: 30, flick: 3, crash: 4 };
+const cfgOf = c => { const o = { ...DEF_CFG }; if (c) for (const k in c) if (c[k] != null) o[k] = c[k]; return o; };
+
+// RoR（手入力・v1 互換の補間方式。SPEC の rorInterp）。
+// (now - window) の温度を記録の折れ線から直線補間して求め、1分あたりに換算する。
+// opts.noFlags: 急変判定をしない（自動測定の 1Hz 記録。判定は A2 で作り直す）
+function withRor(points, cfg, opts) {
+  const c = cfgOf(cfg);
+  const p = [...(points || [])].sort((a, b) => a.t - b.t);
+  const W = Number(c.rorWindow) || 60;
+  const noFlags = !!(opts && opts.noFlags);
+  const tempAtTime = t => {
+    if (t <= p[0].t) return p[0].temp;
+    let lo = 1, hi = p.length; // p[j].t >= t となる最小の j（なければ p.length）
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (p[mid].t >= t) hi = mid; else lo = mid + 1; }
+    if (lo >= p.length) return p[p.length - 1].temp;
+    const a = p[lo - 1], b = p[lo];
+    return b.t === a.t ? b.temp : a.temp + (b.temp - a.temp) * (t - a.t) / (b.t - a.t);
+  };
+  const out = p.map((pt, i) => {
+    if (i === 0) return { ...pt, ror: null };
+    const t0 = Math.max(p[0].t, pt.t - W);
+    const dt = pt.t - t0;
+    return { ...pt, ror: dt > 0 ? r1((pt.temp - tempAtTime(t0)) / dt * 60) : null };
+  });
+  if (noFlags) { for (let i = 1; i < out.length; i++) out[i].flag = null; return out; }
+  // flags only once RoR has peaked after the turning point (the steady-decline phase)
+  let minIdx = 0; out.forEach((pt, i) => { if (pt.temp < out[minIdx].temp) minIdx = i; });
+  let peak = -Infinity;
+  for (let i = 1; i < out.length; i++) {
+    out[i].flag = null;
+    if (i <= minIdx || out[i].ror == null) continue;
+    const pastPeak = out[i - 1].ror != null && out[i - 1].ror < peak;
+    if (out[i - 1].ror != null) peak = Math.max(peak, out[i - 1].ror);
+    if (!pastPeak) continue;
+    const d = out[i].ror - out[i - 1].ror;
+    if (d >= c.flick) out[i].flag = 'flick';
+    else if (d <= -c.crash) out[i].flag = 'crash';
+  }
+  return out;
+}
+const evTime = (r, id) => { const e = (r.events || []).find(x => x.type === id); return e ? e.t : null; };
+
+/* ---- 記録の正規化 ---- */
+const KNOWN = ['schema', 'id', 'beanId', 'beanName', 'origin', 'process', 'greenWeight', 'roastedWeight', 'degree', 'roomTemp', 'weather', 'interval', 'initial',
+  'startedAt', 'dropTime', 'events', 'changes', 'memo', 'tasting', 'savedAt', 'source', 'device', 'channels', 'primary', 'series', 'gaps', 'rorConfig', 'points', 'sample'];
+const V1_CHANNEL = () => ({ key: 'c1', role: 'et', name: '排気温度', color: '(--temp)' });
+
+function pickPrimary(channels, wanted) {
+  if (wanted && channels.some(c => c.key === wanted)) return wanted;
+  const f = role => channels.find(c => c.role === role);
+  return (f('bt') || f('et') || channels.find(c => c.role !== 'amb' && c.role !== 'off') || channels[0]).key;
+}
+
+// 表示用モデル: { channels:[{key,role,name,color,...}], primary, t:number[], v:{key:number[]|null}, sparse, gaps, source, dropTime, extra, ...元の全フィールド }
+function normalizeRecord(r) {
+  r = r || {};
+  const extra = {}; Object.keys(r).forEach(k => { if (!KNOWN.includes(k)) extra[k] = r[k]; });
+  const dropTime = r.dropTime ?? evTime(r, 'drop');
+  const gaps = Array.isArray(r.gaps) ? r.gaps : [];
+  const s = r.series;
+  if (r.schema === 2 && s && s.data && typeof s.data === 'object') {
+    const dt = Number(s.dt) || 1, start = Number(s.start) || 0, scale = Number(s.scale) || 10;
+    const keys = Object.keys(s.data);
+    let channels = Array.isArray(r.channels) && r.channels.length ? r.channels.map(c => ({ role: 'et', name: c.key, ...c })) : [];
+    keys.forEach(k => { if (!channels.some(c => c.key === k)) channels.push({ key: k, role: 'et', name: k, color: '#C2410C' }); });
+    channels = channels.filter(c => keys.includes(c.key));
+    let n = 0; keys.forEach(k => { if (Array.isArray(s.data[k])) n = Math.max(n, s.data[k].length); });
+    const t = new Array(n); for (let i = 0; i < n; i++) t[i] = start + i * dt;
+    const v = {};
+    channels.forEach(c => { const a = s.data[c.key]; v[c.key] = new Array(n); for (let i = 0; i < n; i++) { const x = Array.isArray(a) ? a[i] : null; v[c.key][i] = x == null ? null : x / scale; } });
+    return { ...r, channels, primary: pickPrimary(channels, r.primary), t, v, sparse: false, gaps, source: r.source || 'esp32', dropTime, extra, start, dt, scale, n };
+  }
+  // v1 / series の無い v2: points を時刻順に並べる（sparse）
+  let channels = r.schema === 2 && Array.isArray(r.channels) && r.channels.length ? r.channels.map(c => ({ role: 'et', name: c.key, ...c })) : [V1_CHANNEL()];
+  const primary = pickPrimary(channels, r.primary);
+  const pts = (r.points || []).filter(p => p && Number.isFinite(p.t) && Number.isFinite(p.temp)).sort((a, b) => a.t - b.t);
+  if (channels.length === 1) channels = [{ ...channels[0], color: '(--temp)' }]; // 手入力の1本は従来どおりテーマの色で描く
+  const v = {}; channels.forEach(c => { v[c.key] = c.key === primary ? pts.map(p => p.temp) : null; });
+  return { ...r, channels, primary, t: pts.map(p => p.t), v, sparse: true, gaps, source: r.source || 'manual', dropTime, extra, start: 0, dt: 0, scale: 10, n: pts.length };
+}
+
+// v1 互換の points。sparse は全点、自動測定は主チャンネルの 5 秒ごと（0 ≤ t ≤ dropTime）
+function toV1Points(m) {
+  const arr = m.v[m.primary]; if (!arr) return [];
+  const out = [];
+  if (m.sparse) { for (let i = 0; i < m.t.length; i++) out.push({ t: m.t[i], temp: arr[i] }); return out; }
+  const drop = m.dropTime == null ? Infinity : m.dropTime;
+  for (let i = 0; i < m.t.length; i++) {
+    const t = m.t[i];
+    if (t < 0 || t > drop || arr[i] == null || Math.round(t) !== t || t % 5 !== 0) continue;
+    out.push({ t, temp: r1(arr[i]) });
+  }
+  return out;
+}
+
+// series を factor 秒ぶん平均して間引く。片方が null ならもう片方、全部 null なら null
+function decimate(series, factor) {
+  const f = Math.max(1, Math.floor(factor || 2));
+  const data = {};
+  Object.keys(series.data).forEach(k => {
+    const a = series.data[k], o = [];
+    for (let i = 0; i < a.length; i += f) {
+      let sum = 0, cnt = 0;
+      for (let j = i; j < Math.min(i + f, a.length); j++) if (a[j] != null) { sum += a[j]; cnt++; }
+      o.push(cnt ? Math.round(sum / cnt) : null);
+    }
+    data[k] = o;
+  });
+  return { ...series, dt: series.dt * f, data, decimated: (series.decimated || 1) * f };
+}
+
+// 最低限の構造チェック。{ ok, errors }
+function validate(r) {
+  const errors = [];
+  const isNum = x => typeof x === 'number' && Number.isFinite(x);
+  if (!r || typeof r !== 'object' || Array.isArray(r)) return { ok: false, errors: ['記録がオブジェクトではありません'] };
+  if (typeof r.id !== 'string' || !r.id) errors.push('id がありません');
+  if (r.startedAt != null && !isNum(r.startedAt)) errors.push('startedAt が数値ではありません');
+  if (r.dropTime != null && !isNum(r.dropTime)) errors.push('dropTime が数値ではありません');
+  if (r.events != null && (!Array.isArray(r.events) || r.events.some(e => !e || typeof e.type !== 'string' || !isNum(e.t)))) errors.push('events の形式が正しくありません');
+  if (r.changes != null && !Array.isArray(r.changes)) errors.push('changes の形式が正しくありません');
+  if (r.points != null && (!Array.isArray(r.points) || r.points.some(p => !p || !isNum(p.t) || !isNum(p.temp)))) errors.push('points の形式が正しくありません');
+  if (r.schema != null && r.schema !== 1 && r.schema !== 2) errors.push('schema は 1 か 2 です');
+  if (r.schema === 2) {
+    if (r.channels != null && (!Array.isArray(r.channels) || r.channels.some(c => !c || typeof c.key !== 'string'))) errors.push('channels の形式が正しくありません');
+    if (r.gaps != null && (!Array.isArray(r.gaps) || r.gaps.some(g => !Array.isArray(g) || g.length !== 2 || !isNum(g[0]) || !isNum(g[1])))) errors.push('gaps の形式が正しくありません');
+    const s = r.series;
+    if (s != null) {
+      if (typeof s !== 'object' || !isNum(s.dt) || s.dt <= 0 || !isNum(s.start) || !isNum(s.scale) || s.scale <= 0 || !s.data || typeof s.data !== 'object') errors.push('series の形式が正しくありません');
+      else {
+        const keys = Object.keys(s.data); let len = null;
+        keys.forEach(k => {
+          const a = s.data[k];
+          if (!Array.isArray(a) || a.some(x => x !== null && !isNum(x))) errors.push(`series.data.${k} が数値の配列ではありません`);
+          else if (len == null) len = a.length; else if (a.length !== len) errors.push('series のチャンネル間で長さが違います');
+        });
+        if (!keys.length) errors.push('series にデータがありません');
+        if (Array.isArray(r.channels) && r.primary && !keys.includes(r.primary)) errors.push('primary に対応する series がありません');
+      }
+    } else if (!Array.isArray(r.points)) errors.push('series も points もありません');
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+// 時刻 t の値（℃）。自動測定は最も近い秒、sparse は t 以前の最後の点。なければ null
+function valueAt(m, key, t) {
+  const a = m.v[key]; if (!a) return null;
+  if (!m.sparse) { const i = Math.round((t - m.start) / m.dt); return i >= 0 && i < a.length ? a[i] : null; }
+  let lo = 0, hi = m.t.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (m.t[mid] <= t) lo = mid + 1; else hi = mid; }
+  return lo ? a[lo - 1] : null;
+}
+function ptAt(pts, t) { // pts は時刻順。t 以前の最後の点
+  let lo = 0, hi = pts.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (pts[mid].t <= t) lo = mid + 1; else hi = mid; }
+  return lo ? pts[lo - 1] : null;
+}
+
+function stats(r, cfg, m) {
+  m = m || normalizeRecord(r);
+  const c = cfgOf(cfg);
+  let pts;
+  if (m.sparse) pts = withRor(r.points, c); // v1 と完全に同じ計算
+  else {
+    const a = m.v[m.primary], drop = m.dropTime == null ? Infinity : m.dropTime, arr = [];
+    for (let i = 0; i < m.t.length; i++) { const t = m.t[i]; if (t < 0) continue; if (t > drop) break; if (a[i] != null) arr.push({ t, temp: r1(a[i]) }); }
+    pts = withRor(arr, { ...c, rorWindow: c.rorWindowAuto }, { noFlags: true });
+  }
+  const total = r.dropTime ?? evTime(r, 'drop');
+  const fc = evTime(r, 'fc1');
+  const dev = total != null && fc != null ? total - fc : null;
+  const dtr = dev != null && total > 0 ? r1(dev / total * 100) : null;
+  const loss = r.greenWeight && r.roastedWeight ? r1((r.greenWeight - r.roastedWeight) / r.greenWeight * 100) : null;
+  let tp = evTime(r, 'tp'), tpTemp = null, tpAuto = false;
+  if (tp == null && pts.length > 2) { let mn = pts[0]; pts.forEach(p => { if (p.temp < mn.temp) mn = p; }); if (mn !== pts[0]) { tp = mn.t; tpTemp = mn.temp; tpAuto = true; } }
+  const charge = pts.find(p => p.t === 0)?.temp ?? null;
+  let dropTemp = null;
+  if (pts.length) { const q = total != null ? ptAt(pts, total) : null; dropTemp = (q || pts[pts.length - 1]).temp; }
+  // 自動測定の追加タイル用
+  const tpValue = tp != null ? (ptAt(pts, tp)?.temp ?? null) : null;
+  let maxRor = null; if (tp != null) pts.forEach(p => { if (p.t >= tp && p.ror != null && (maxRor == null || p.ror > maxRor)) maxRor = p.ror; });
+  const fcTemp = fc != null ? (ptAt(pts, fc)?.temp ?? null) : null;
+  const dry = evTime(r, 'dry');
+  const maillard = dry != null && fc != null ? fc - dry : null;
+  return { pts, total, fc, dev, dtr, loss, tp, tpTemp, tpAuto, charge, dropTemp, tpValue, maxRor, fcTemp, dry, maillard, model: m };
+}
+
+G.RoastCore = { r1, withRor, rorInterp: withRor, evTime, stats, normalizeRecord, toV1Points, decimate, validate, valueAt };
+})(typeof window !== 'undefined' ? window : globalThis);
+// @core-end
+</script>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- constants ---------- */
+const EVENTS = [
+  { id: 'tp',   label: '中点',      short: '中点' },
+  { id: 'dry',  label: '黄色化',    short: '黄' },
+  { id: 'fc1',  label: '1ハゼ開始', short: '1ハゼ' },
+  { id: 'fc1e', label: '1ハゼ終了', short: '1終' },
+  { id: 'fc2',  label: '2ハゼ開始', short: '2ハゼ' },
+  { id: 'drop', label: '排出',      short: '排出' },
+];
+const EV = Object.fromEntries(EVENTS.map(e => [e.id, e]));
+const DEGREES = ['浅煎り', '中浅煎り', '中煎り', '中深煎り', '深煎り'];
+const SCALES = [['acidity', '酸味'], ['bitterness', '苦味'], ['sweetness', '甘み'], ['aroma', '香り'], ['body', 'コク']];
+const DEFAULTS = {
+  interval: 30, flick: 3, crash: 4, rorWindow: 60,
+  fireLabels: ['弱', '中', '強'],
+  damperLabels: ['閉', '1/4', '1/2', '3/4', '全開'],
+  rpmOptions: ['5', '6', '7', '8', '9', '10'],
+  sound: true,
+  // v2（自動測定）用。A1 では rorWindowAuto だけ表示に使う
+  conn: { type: 'auto', host: '' },
+  channels: [
+    { key: 'c1', enabled: true, role: 'bt', name: '豆温度', color: '#C2410C', offset: 0 },
+    { key: 'c2', enabled: false, role: 'et', name: '排気', color: '#7A5AA6', offset: 0 },
+    { key: 'c3', enabled: false, role: 'amb', name: '外気温', color: '#6B7280', offset: 0 }],
+  roasterType: 'drum',
+  rorWindowAuto: 30, rorSmooth: 5, showEtRor: false,
+  autoCharge: true, autoTP: true, autoDropHint: true, flagBeep: true,
+  mains: 50, ampAvg: 4,
+  sim: { speed: 1, profile: 'drum', seed: 1, noise: 0.3 },
+};
+const DRAFT_KEY = 'roastlog.draft';
+const CACHE_KEY = 'roastlog.cache';
+const PENDING_KEY = 'roastlog.pending';
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const r1 = n => Math.round(n * 10) / 10;
+const num = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
+const fmt = sec => { if (sec == null || !Number.isFinite(sec)) return '—'; const s = Math.max(0, Math.round(sec)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const parseTime = str => { const m = String(str || '').trim().match(/^(\d+):(\d{1,2})$/); if (m) return (+m[1]) * 60 + (+m[2]); const n = num(str); return n == null ? null : n; };
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const fmtDate = ms => { const d = new Date(ms); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const ls = {
+  get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), ms))]);
+const clean = o => JSON.parse(JSON.stringify(o)); // drops undefined
+
+/* ---------- RoR + stats（計算は RoastCore。ここは設定を渡して結果をキャッシュするだけ）---------- */
+const evTime = RoastCore.evTime;
+const rorCfg = () => { const s = settings(); return { rorWindow: s.rorWindow, rorWindowAuto: s.rorWindowAuto, flick: s.flick, crash: s.crash }; };
+const withRor = points => RoastCore.withRor(points, rorCfg());
+const cfgKey = () => { const c = rorCfg(); return [c.rorWindow, c.rorWindowAuto, c.flick, c.crash].join('|'); };
+// 記録ごとの計算結果キャッシュ。savedAt・points・series・events などが変わると作り直す（焙煎中の draft は毎回計算）
+const recCache = new WeakMap();
+const isDraft = r => !!r.status;
+function cacheEntry(r) {
+  if (isDraft(r)) return null;
+  const k = cfgKey(); let e = recCache.get(r);
+  if (!e || e.sa !== r.savedAt || e.p !== r.points || e.s !== r.series || e.ev !== r.events || e.dt !== r.dropTime || e.gw !== r.greenWeight || e.rw !== r.roastedWeight || e.k !== k) {
+    e = { sa: r.savedAt, p: r.points, s: r.series, ev: r.events, dt: r.dropTime, gw: r.greenWeight, rw: r.roastedWeight, k };
+    recCache.set(r, e);
+  }
+  return e;
+}
+function getModel(r) { const e = cacheEntry(r); if (!e) return RoastCore.normalizeRecord(r); return e.m || (e.m = RoastCore.normalizeRecord(r)); }
+function stats(r) { const e = cacheEntry(r); if (!e) return RoastCore.stats(r, rorCfg()); return e.st || (e.st = RoastCore.stats(r, rorCfg(), getModel(r))); }
+
+/* ---------- storage: claude.ai db with local cache ---------- */
+const Store = {
+  db: null, mode: 'local',
+  async init() {
+    try {
+      if (window.claude && typeof window.claude.use === 'function') {
+        const d = await withTimeout(window.claude.use('db'), 10000).catch(() => null);
+        if (d) { this.db = d; this.mode = 'cloud'; }
+      }
+    } catch {}
+  },
+  async loadAll() {
+    const cache = ls.get(CACHE_KEY) || { roasts: [], beans: [], settings: null };
+    if (this.mode !== 'cloud') return { ...cache, from: 'local' };
+    try {
+      const [rs, bs, st] = await withTimeout(Promise.all([
+        this.db.collection('roasts').get(),
+        this.db.collection('beans').get(),
+        this.db.doc('config/app').get(),
+      ]), 12000);
+      const data = {
+        roasts: rs.docs.map(d => ({ ...d.data(), id: d.id })),
+        beans: bs.docs.map(d => ({ ...d.data(), id: d.id })),
+        settings: st.exists ? st.data() : null,
+      };
+      // keep local-only items that are still waiting to upload
+      const pend = ls.get(PENDING_KEY) || [];
+      pend.forEach(p => {
+        if (p.op !== 'set') return;
+        const list = p.col === 'roasts' ? data.roasts : p.col === 'beans' ? data.beans : null;
+        const local = (p.col === 'roasts' ? cache.roasts : cache.beans).find(x => x.id === p.id);
+        if (list && local) { const i = list.findIndex(x => x.id === p.id); if (i >= 0) list[i] = local; else list.push(local); }
+      });
+      ls.set(CACHE_KEY, data);
+      return { ...data, from: 'cloud' };
+    } catch {
+      return { ...cache, from: 'cache' };
+    }
+  },
+  writeCache() { ls.set(CACHE_KEY, { roasts: S.roasts, beans: S.beans, settings: S.settings }); },
+  path(col, id) { return col === 'config' ? 'config/app' : col + '/' + id; },
+  async put(col, id, obj) {
+    this.writeCache();
+    if (this.mode !== 'cloud') return true;
+    try { await withTimeout(this.db.doc(this.path(col, id)).set(clean(obj)), 10000); this.unqueue(col, id); return true; }
+    catch { this.queue(col, id, 'set'); return false; }
+  },
+  async remove(col, id) {
+    this.writeCache();
+    if (this.mode !== 'cloud') return true;
+    try { await withTimeout(this.db.doc(this.path(col, id)).delete(), 10000); this.unqueue(col, id); return true; }
+    catch { this.queue(col, id, 'delete'); return false; }
+  },
+  queue(col, id, op) { const p = (ls.get(PENDING_KEY) || []).filter(x => !(x.col === col && x.id === id)); p.push({ col, id, op }); ls.set(PENDING_KEY, p); },
+  unqueue(col, id) { const p = (ls.get(PENDING_KEY) || []).filter(x => !(x.col === col && x.id === id)); ls.set(PENDING_KEY, p); },
+  async flush() {
+    if (this.mode !== 'cloud') return;
+    const p = ls.get(PENDING_KEY) || [];
+    for (const it of p) {
+      if (it.op === 'delete') { await this.remove(it.col, it.id); continue; }
+      const obj = it.col === 'roasts' ? S.roasts.find(x => x.id === it.id) : it.col === 'beans' ? S.beans.find(x => x.id === it.id) : S.settings;
+      if (obj) await this.put(it.col, it.id, obj); else this.unqueue(it.col, it.id);
+    }
+  },
+};
+
+/* ---------- state ---------- */
+const S = { roasts: [], beans: [], settings: { ...DEFAULTS }, view: 'home', draft: null, detailId: null, loaded: false, editBeanId: null };
+const settings = () => S.settings;
+
+function show(view) {
+  S.view = view;
+  document.querySelectorAll('[data-view]').forEach(el => { el.hidden = el.dataset.view !== view; });
+  window.scrollTo(0, 0);
+  if (view === 'home') renderHome();
+  if (view === 'setup') renderSetup();
+  if (view === 'roast') renderRoast();
+  if (view === 'finish') renderFinish();
+  if (view === 'detail') renderDetail();
+  if (view === 'beans') renderBeans();
+  if (view === 'settings') renderSettings();
+}
+
+function toast(msg) {
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+function confirmSheet(msg, okLabel, danger) {
+  return new Promise(res => {
+    const o = document.createElement('div'); o.className = 'overlay';
+    o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><p>${esc(msg)}</p><div class="grid2"><button class="btn ghost" data-r="0">戻る</button><button class="btn ${danger ? 'danger' : 'primary'}" data-r="1">${esc(okLabel)}</button></div></div>`;
+    o.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b && e.target !== o) return; o.remove(); res(b ? b.dataset.r === '1' : false); });
+    document.body.appendChild(o); o.querySelector('[data-r="1"]').focus();
+  });
+}
+
+/* ---------- chart ---------- */
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+const hiddenCh = new Set(); // 凡例で隠したチャンネル（'__ror' は RoR の線）
+const ROLE_SHORT = { bt: 'BT', et: 'ET', amb: 'AMB', inlet: 'INLET' };
+const chShort = c => ROLE_SHORT[c.role] || c.name || c.key;
+const isTok = x => /^\(--/.test(x || '');
+const chColor = c => isTok(c.color) ? cssVar(c.color.slice(1, -1)) : (c.color || '#C2410C');
+const chCss = c => isTok(c.color) ? `var(${c.color.slice(1, -1)})` : esc(c.color || '#C2410C');
+const drawable = (m, c) => c.role !== 'amb' && c.role !== 'off' && !!m.v[c.key];
+function drawChart(cv, r, opts = {}) {
+  const w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+  const C = { ink: cssVar('--ink'), muted: cssVar('--muted'), line: cssVar('--line'), temp: cssVar('--temp'), ror: cssVar('--ror'), warn: cssVar('--warn') };
+  const m = opts.model || getModel(r), st = opts.stats || stats(r);
+  const pts = st.pts;
+  const now = opts.now ?? r.dropTime ?? (pts.length ? pts[pts.length - 1].t : 0);
+  const tMax = Math.max(480, Math.ceil((now + 45) / 60) * 60);
+  const chans = m.channels.filter(ch => drawable(m, ch) && !hiddenCh.has(ch.key));
+  let lo = Infinity, hi = -Infinity;
+  chans.forEach(ch => { const a = m.v[ch.key]; for (let i = 0; i < a.length; i++) { const x = a[i]; if (x == null || m.t[i] < 0) continue; if (x < lo) lo = x; if (x > hi) hi = x; } });
+  const has = lo <= hi;
+  let yMin = has ? Math.max(0, Math.floor((lo - 5) / 50) * 50) : 50;
+  let yMax = has ? Math.ceil((hi + 10) / 50) * 50 : 250;
+  if (yMax - yMin < 100) yMax = yMin + 100;
+  const rors = pts.filter(p => p.ror != null).map(p => p.ror);
+  // the big negative RoR right after charging would squash the scale, so cap the bottom at -10
+  let rMin = Math.max(-10, Math.min(-5, rors.length ? Math.floor(Math.min(...rors) / 5) * 5 : 0));
+  let rMax = Math.max(20, rors.length ? Math.ceil(Math.max(...rors) / 5) * 5 : 20);
+  const L = 34, R = 32, T = 18, B = 20;
+  const X = t => L + (t / tMax) * (w - L - R);
+  const Y = v => T + (1 - (v - yMin) / (yMax - yMin)) * (h - T - B);
+  const YR = v => T + (1 - (Math.max(rMin, v) - rMin) / (rMax - rMin)) * (h - T - B);
+  c.font = `11px ${cssVar('--font-num')}`; c.lineWidth = 1;
+  // grid
+  c.strokeStyle = C.line; c.fillStyle = C.muted; c.textBaseline = 'middle';
+  for (let v = yMin; v <= yMax; v += 50) { c.beginPath(); c.moveTo(L, Y(v)); c.lineTo(w - R, Y(v)); c.stroke(); c.textAlign = 'right'; c.fillText(v, L - 4, Y(v)); }
+  const rStep = (rMax - rMin) > 40 ? 10 : 5;
+  c.textAlign = 'left'; c.fillStyle = C.ror;
+  for (let v = Math.ceil(rMin / rStep) * rStep; v <= rMax; v += rStep) c.fillText(v, w - R + 4, YR(v));
+  c.save(); c.setLineDash([3, 3]); c.strokeStyle = C.ror; c.globalAlpha = .5; c.beginPath(); c.moveTo(L, YR(0)); c.lineTo(w - R, YR(0)); c.stroke(); c.restore();
+  const xStep = tMax > 900 ? 120 : 60; c.fillStyle = C.muted; c.textAlign = 'center'; c.textBaseline = 'top';
+  for (let t = 0; t <= tMax; t += xStep) { c.strokeStyle = C.line; c.globalAlpha = .6; c.beginPath(); c.moveTo(X(t), T); c.lineTo(X(t), h - B); c.stroke(); c.globalAlpha = 1; c.fillText(t / 60 + '分', X(t), h - B + 4); }
+  // gaps（欠測の区間は薄く塗る。線もここでは切れる）
+  (m.gaps || []).forEach(g => { const x0 = X(Math.max(0, g[0])), x1 = X(Math.min(tMax, g[1])); if (x1 > x0) { c.save(); c.globalAlpha = .12; c.fillStyle = C.muted; c.fillRect(x0, T, x1 - x0, h - T - B); c.restore(); } });
+  // events
+  (r.events || []).forEach((e, i) => {
+    if (!EV[e.type]) return;
+    const x = X(e.t); c.save(); c.setLineDash([4, 3]); c.strokeStyle = C.muted; c.beginPath(); c.moveTo(x, T); c.lineTo(x, h - B); c.stroke(); c.restore();
+    c.fillStyle = C.ink; c.textAlign = 'center'; c.textBaseline = 'top'; c.font = `bold 11px ${cssVar('--font-body')}`;
+    c.fillText(EV[e.type].short, Math.min(Math.max(x, L + 12), w - R - 12), i % 2 ? 9 : 0);
+  });
+  // setting changes (small ticks along the bottom)
+  c.font = `10px ${cssVar('--font-body')}`;
+  (r.changes || []).forEach((ch, i) => {
+    const x = X(ch.t); c.fillStyle = C.muted; c.beginPath(); c.moveTo(x, h - B); c.lineTo(x - 4, h - B - 7); c.lineTo(x + 4, h - B - 7); c.closePath(); c.fill();
+    c.textAlign = 'center'; c.textBaseline = 'bottom'; c.fillText(changeShort(ch), Math.min(Math.max(x, L + 10), w - R - 10), h - B - 8 - (i % 2) * 11);
+  });
+  // RoR line（主チャンネル）
+  const rp = hiddenCh.has('__ror') ? [] : pts.filter(p => p.ror != null);
+  if (rp.length) {
+    c.strokeStyle = C.ror; c.lineWidth = 2; c.beginPath(); rp.forEach((p, i) => i ? c.lineTo(X(p.t), YR(p.ror)) : c.moveTo(X(p.t), YR(p.ror))); c.stroke();
+    if (m.sparse) rp.forEach(p => { c.fillStyle = p.flag ? C.warn : C.ror; c.beginPath(); c.arc(X(p.t), YR(p.ror), p.flag ? 4 : 2.2, 0, 7); c.fill(); });
+  }
+  // temperature lines（主チャンネルを最後に重ねる）
+  const order = chans.filter(ch => ch.key !== m.primary).concat(chans.filter(ch => ch.key === m.primary));
+  order.forEach(ch => {
+    const col = chColor(ch), prim = ch.key === m.primary, a = m.v[ch.key];
+    c.strokeStyle = col; c.fillStyle = col; c.lineWidth = prim ? 2.6 : 1.8; c.lineJoin = m.sparse ? 'miter' : 'round';
+    if (m.sparse) {
+      if (!m.t.length) return;
+      c.beginPath(); m.t.forEach((t, i) => i ? c.lineTo(X(t), Y(a[i])) : c.moveTo(X(t), Y(a[i]))); c.stroke();
+      m.t.forEach((t, i) => { c.beginPath(); c.arc(X(t), Y(a[i]), 2.6, 0, 7); c.fill(); });
+      const li = m.t.length - 1; c.beginPath(); c.arc(X(m.t[li]), Y(a[li]), 4.5, 0, 7); c.fill();
+    } else strokeDense(c, m, a, X, Y);
+  });
+  if (opts.live) { c.strokeStyle = C.ink; c.lineWidth = 1.5; c.beginPath(); c.moveTo(X(now), T); c.lineTo(X(now), h - B); c.stroke(); }
+  if (!pts.length) { c.fillStyle = C.muted; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `13px ${cssVar('--font-body')}`; c.fillText('温度を記録するとグラフが描かれます', w / 2, h / 2); }
+}
+// 自動測定の線: 横 1px ごとに min/max の 2 点にまとめる。null と gaps の区間では線を切る
+function strokeDense(c, m, a, X, Y) {
+  const t = m.t, gaps = m.gaps || [];
+  const inGap = x => gaps.some(g => x >= g[0] && x <= g[1]);
+  const crosses = (p, q) => gaps.some(g => g[0] < q && g[1] > p);
+  const segs = []; let cur = null, bk = null, lastT = null;
+  const flush = () => {
+    if (!bk) return;
+    const o = bk.minI === bk.maxI ? [bk.minI] : bk.minI < bk.maxI ? [bk.minI, bk.maxI] : [bk.maxI, bk.minI];
+    o.forEach(i => cur.push([X(t[i]), Y(a[i])])); bk = null;
+  };
+  for (let i = 0; i < t.length; i++) {
+    const tt = t[i]; if (tt < 0) continue;
+    const v = a[i];
+    if (v == null || inGap(tt)) { flush(); cur = null; lastT = null; continue; }
+    if (lastT != null && gaps.length && crosses(lastT, tt)) { flush(); cur = null; }
+    if (!cur) { cur = []; segs.push(cur); }
+    const px = Math.floor(X(tt));
+    if (bk && bk.px !== px) flush();
+    if (!bk) bk = { px, minI: i, maxI: i };
+    else { if (v < a[bk.minI]) bk.minI = i; if (v > a[bk.maxI]) bk.maxI = i; }
+    lastT = tt;
+  }
+  flush();
+  c.beginPath();
+  segs.forEach(s => { if (s.length === 1) { c.moveTo(s[0][0], s[0][1]); c.lineTo(s[0][0] + .01, s[0][1]); } else s.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); });
+  c.stroke();
+}
+// 凡例: チャンネルから動的に作る。タップで表示・非表示。AMB は線を描かず数値だけ
+function legendHtml(m) {
+  const drop = m.dropTime == null ? Infinity : m.dropTime;
+  const lastVal = ch => { const a = m.v[ch.key]; if (!a) return null; for (let i = a.length - 1; i >= 0; i--) { if (m.t[i] > drop || m.t[i] < 0) continue; if (a[i] != null) return a[i]; } return null; };
+  const items = m.channels.filter(ch => ch.role !== 'off' && m.v[ch.key]).map(ch => {
+    if (ch.role === 'amb') { const v = lastVal(ch); return `<span>${esc(ch.name || '外気温')} <span class="num">${v == null ? '—' : r1(v) + '℃'}</span></span>`; }
+    const off = hiddenCh.has(ch.key);
+    return `<button type="button" class="lg${off ? ' off' : ''}" data-lg="${esc(ch.key)}" aria-pressed="${!off}"><b style="background:${chCss(ch)}"></b>${esc(ch.name || ch.key)}</button>`;
+  });
+  const roff = hiddenCh.has('__ror');
+  items.push(`<button type="button" class="lg${roff ? ' off' : ''}" data-lg="__ror" aria-pressed="${!roff}"><b style="background:var(--ror)"></b>RoR</button>`);
+  return items.join('');
+}
+function paintDetailChart(r) {
+  const m = getModel(r);
+  $('#detailLegend').innerHTML = legendHtml(m);
+  drawChart($('#detailChart'), r);
+}
+function paintLiveLegend() { if (S.draft) $('#liveLegend').innerHTML = legendHtml(RoastCore.normalizeRecord(S.draft)); }
+function changeShort(ch) {
+  if (ch.kind === 'fire') return '火' + ch.value;
+  if (ch.kind === 'knob') return '火' + ch.value;
+  if (ch.kind === 'damper') return 'D' + ch.value;
+  if (ch.kind === 'rpm') return 'R' + ch.value;
+  return '';
+}
+function changeLabel(ch) {
+  if (ch.kind === 'fire') return '火力 → ' + ch.value;
+  if (ch.kind === 'knob') return '火力つまみ → ' + ch.value;
+  if (ch.kind === 'damper') return 'ダンパー → ' + ch.value;
+  if (ch.kind === 'rpm') return '回転数 → ' + ch.value;
+  return '';
+}
+function sparkline(r) {
+  const m = getModel(r), a = m.v[m.primary], p = [];
+  if (a) for (let i = 0; i < a.length; i++) {
+    const t = m.t[i], v = a[i]; if (v == null) continue;
+    if (!m.sparse && (t < 0 || (m.dropTime != null && t > m.dropTime) || t % 10 !== 0)) continue; // 自動測定は 10 秒間隔で描く
+    p.push({ t, temp: v });
+  }
+  if (p.length < 2) return '<svg width="64" height="30" aria-hidden="true"></svg>';
+  let lo = Infinity, hi = -Infinity; p.forEach(x => { if (x.temp < lo) lo = x.temp; if (x.temp > hi) hi = x.temp; });
+  const tMax = p[p.length - 1].t || 1; hi = hi || 1;
+  const d = p.map((x, i) => `${i ? 'L' : 'M'}${(x.t / tMax * 62 + 1).toFixed(1)},${(28 - (x.temp - lo) / ((hi - lo) || 1) * 26).toFixed(1)}`).join('');
+  return `<svg width="64" height="30" viewBox="0 0 64 30" aria-hidden="true"><path d="${d}" fill="none" stroke="var(--temp)" stroke-width="2" stroke-linejoin="round"/></svg>`;
+}
+
+/* ---------- HOME ---------- */
+function renderHome() {
+  const chip = $('#modeChip');
+  chip.textContent = !S.loaded ? '読み込み中' : Store.mode === 'cloud' ? (S.loadFrom === 'cache' ? 'オフライン表示' : 'claude.ai に保存') : 'この端末に保存';
+  const rb = $('#resumeBox');
+  if (S.draft) {
+    const d = S.draft;
+    rb.innerHTML = `<div class="banner"><div><b>${d.status === 'finishing' ? '保存前の焙煎があります' : '焙煎中の記録があります'}</b><div class="small">${esc(d.beanName || '豆の名前なし')}・温度 ${(d.points || []).length} 件</div></div><div class="row"><button class="btn primary" data-action="resume">続ける</button><button class="btn ghost" data-action="discard-draft">破棄する</button></div></div>`;
+  } else rb.innerHTML = '';
+  const q = ($('#search').value || '').trim().toLowerCase();
+  const list = S.roasts.filter(r => !q || [r.beanName, r.origin, r.memo, r.degree, r.tasting?.memo, r.tasting?.pairing].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+  $('#histCount').textContent = S.loaded ? `${S.roasts.length} 件` : '';
+  const box = $('#historyList');
+  if (!S.loaded) { box.innerHTML = '<div class="empty">記録を読み込んでいます…</div>'; return; }
+  if (!S.roasts.length) { box.innerHTML = '<div class="empty"><b>まだ焙煎の記録がありません</b><span class="small">「新しい焙煎をはじめる」から最初の記録をつけましょう。</span></div>'; return; }
+  if (!list.length) { box.innerHTML = '<div class="empty">該当する記録がありません</div>'; return; }
+  box.innerHTML = list.map(r => {
+    const st = stats(r);
+    const autoTag = r.source === 'esp32' || r.source === 'sim' ? `<span class="tag">自動 ${st.model.channels.filter(c => c.role !== 'off').length}ch</span>` : '';
+    return `<button class="roast-item" data-action="open" data-id="${esc(r.id)}">
+      <span class="name">${esc(r.beanName || '豆の名前なし')}${r.sample ? '<span class="tag">サンプル</span>' : ''}${autoTag}${r.tasting && r.tasting.done ? '<span class="tag">評価済み</span>' : ''}</span>${sparkline(r)}
+      <span class="meta num" style="font-size:15px">${fmtDate(r.startedAt)}・${fmt(st.total)}${st.loss != null ? '・目減り ' + st.loss + '%' : ''}${r.degree ? '・<span style="font-family:var(--font-body);font-size:13px">' + esc(r.degree) + '</span>' : ''}</span>
+    </button>`;
+  }).join('');
+}
+
+/* ---------- SETUP ---------- */
+const opts = (arr, sel) => arr.map(v => `<option${String(v) === String(sel) ? ' selected' : ''}>${esc(v)}</option>`).join('');
+let setupInterval = 30;
+function renderSetup() {
+  const st = settings();
+  const last = S.roasts.slice().sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))[0];
+  $('#suBean').innerHTML = '<option value="__new">新しい豆を入力する</option>' + S.beans.slice().sort((a, b) => a.name.localeCompare(b.name, 'ja')).map(b => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('');
+  if (last && last.beanId && S.beans.some(b => b.id === last.beanId)) $('#suBean').value = last.beanId;
+  $('#suNewBean').hidden = $('#suBean').value !== '__new';
+  $('#suDegree').innerHTML = opts(DEGREES, last?.degree || '中煎り');
+  $('#suGreen').value = last?.greenWeight ?? '';
+  $('#suFire').innerHTML = opts(st.fireLabels, last?.initial?.fire ?? st.fireLabels[Math.floor(st.fireLabels.length / 2)]);
+  $('#suDamper').innerHTML = opts(st.damperLabels, last?.initial?.damper ?? st.damperLabels[0]);
+  $('#suRpm').innerHTML = opts(st.rpmOptions, last?.initial?.rpm ?? st.rpmOptions[Math.floor(st.rpmOptions.length / 2)]);
+  setupInterval = st.interval;
+  segOn('#suInterval', setupInterval);
+}
+function segOn(sel, v) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', String(b.dataset.v) === String(v))); }
+
+async function startSetup() {
+  let beanId = $('#suBean').value, beanName, origin = '', process = '';
+  if (beanId === '__new') {
+    beanName = $('#suBeanName').value.trim();
+    if (!beanName) { toast('豆の名前を入力してください'); $('#suBeanName').focus(); return; }
+    origin = $('#suOrigin').value.trim(); process = $('#suProcess').value.trim();
+    const bean = { id: uid('b'), name: beanName, origin, process, shop: '', memo: '', createdAt: Date.now() };
+    S.beans.push(bean); Store.put('beans', bean.id, bean); beanId = bean.id;
+  } else {
+    const b = S.beans.find(x => x.id === beanId); beanName = b?.name || ''; origin = b?.origin || ''; process = b?.process || '';
+  }
+  const initial = { fire: $('#suFire').value, damper: $('#suDamper').value, rpm: $('#suRpm').value };
+  S.draft = {
+    id: uid('r'), status: 'ready', beanId, beanName, origin, process,
+    greenWeight: num($('#suGreen').value), degree: $('#suDegree').value,
+    roomTemp: num($('#suRoom').value), weather: $('#suWeather').value || null,
+    interval: setupInterval, initial, current: { ...initial, knob: null },
+    startedAt: null, dropTime: null, points: [], events: [], changes: [], undo: [], memo: '',
+  };
+  saveDraft(); show('roast');
+}
+
+/* ---------- ROASTING ---------- */
+let kpBuf = '', tick = null, nextDue = 0, wakeLock = null, audioCtx = null, lastChartDraw = 0;
+const elapsed = () => S.draft && S.draft.startedAt ? (Date.now() - S.draft.startedAt) / 1000 : 0;
+function saveDraft() { if (S.draft) ls.set(DRAFT_KEY, S.draft); else ls.del(DRAFT_KEY); }
+
+function renderRoast() {
+  const d = S.draft; if (!d) return show('home');
+  $('#rBean').textContent = d.beanName || '豆の名前なし';
+  $('#rGreen').textContent = d.greenWeight ? `生豆 ${d.greenWeight}g` : '';
+  $('#startArea').hidden = !!d.startedAt;
+  $('#soundBtn').textContent = settings().sound ? '音：オン' : '音：オフ';
+  kpBuf = ''; paintLiveLegend(); renderKeypad(); renderEvents(); renderControls(); updateGauges(); drawLive(true);
+  if (d.startedAt) startTick();
+}
+function renderKeypad() {
+  $('#kpVal').textContent = kpBuf || '—';
+  $('#kpHint').textContent = S.draft && S.draft.startedAt ? '排気温度を入力して「記録」' : '投入時の排気温度（任意）';
+}
+function renderEvents() {
+  const d = S.draft;
+  $('#events').innerHTML = EVENTS.map(e => {
+    const t = evTime(d, e.id);
+    return `<button class="ev ${e.id === 'drop' ? 'drop' : ''} ${t != null && e.id !== 'drop' ? 'done' : ''}" data-ev="${e.id}" ${d.startedAt ? '' : 'disabled'}>${e.label}<small>${t != null ? fmt(t) : '—'}</small></button>`;
+  }).join('');
+}
+function renderControls() {
+  const d = S.draft, st = settings(), cur = d.current;
+  const seg = (kind, arr) => `<div class="seg">${arr.map(v => `<button data-ctrl="${kind}" data-v="${esc(v)}" class="${String(cur[kind]) === String(v) ? 'on' : ''}">${esc(v)}</button>`).join('')}</div>`;
+  $('#controls').innerHTML = `
+    <div class="ctrl"><div class="ctrl-head"><span class="label">火力</span>
+      <select class="knob" id="knobSel" aria-label="火力つまみの数値"><option value="">つまみ —</option>${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}" ${String(cur.knob) === String(i + 1) ? 'selected' : ''}>つまみ ${i + 1}</option>`).join('')}</select></div>
+      ${seg('fire', st.fireLabels)}</div>
+    <div class="ctrl"><span class="label">ダンパー</span>${seg('damper', st.damperLabels)}</div>
+    <div class="ctrl"><span class="label">回転数</span>${seg('rpm', st.rpmOptions)}</div>`;
+}
+function updateGauges() {
+  const d = S.draft; if (!d) return;
+  const pts = withRor(d.points); const last = pts[pts.length - 1];
+  $('#gTime').textContent = fmt(elapsed());
+  $('#gTemp').innerHTML = last ? `${last.temp}<small>℃</small>` : '—';
+  const box = $('#gRorBox'); box.classList.remove('flick', 'crash');
+  if (last && last.ror != null) {
+    const prev = pts[pts.length - 2];
+    const arrow = prev && prev.ror != null ? (last.ror > prev.ror ? ' ↑' : last.ror < prev.ror ? ' ↓' : ' →') : '';
+    $('#gRor').innerHTML = `${last.ror.toFixed(1)}<small>${arrow}</small>`;
+    if (last.flag) box.classList.add(last.flag);
+    $('#gRorNote').textContent = last.flag === 'flick' ? '急上昇' : last.flag === 'crash' ? '急降下' : '';
+  } else { $('#gRor').textContent = '—'; $('#gRorNote').textContent = ''; }
+  if (d.startedAt) {
+    const left = Math.max(0, nextDue - elapsed());
+    $('#cdText').textContent = `次の入力まで ${fmt(left)}`;
+    $('#cdBar').style.width = (100 - left / d.interval * 100) + '%';
+  } else { $('#cdText').textContent = '投入でタイマーが動き出します'; $('#cdBar').style.width = '0'; }
+}
+function drawLive(force) {
+  const now = Date.now(); if (!force && now - lastChartDraw < 1000) return; lastChartDraw = now;
+  if (S.draft) drawChart($('#liveChart'), S.draft, { live: !!S.draft.startedAt, now: elapsed() });
+}
+function startTick() {
+  stopTick();
+  const d = S.draft;
+  const t = elapsed();
+  nextDue = (Math.floor(t / d.interval) + 1) * d.interval;
+  tick = setInterval(() => {
+    if (!S.draft || !S.draft.startedAt) return stopTick();
+    if (elapsed() >= nextDue) { alertInput(); nextDue += S.draft.interval; }
+    if (S.view === 'roast') { updateGauges(); drawLive(); }
+  }, 250);
+  requestWake();
+}
+function stopTick() { if (tick) clearInterval(tick); tick = null; }
+async function requestWake() {
+  try { if ('wakeLock' in navigator && document.visibilityState === 'visible' && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch { wakeLock = null; }
+}
+function releaseWake() { try { wakeLock && wakeLock.release(); } catch {} wakeLock = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.draft && S.draft.startedAt && S.draft.status === 'roasting') requestWake(); });
+function beep() {
+  if (!settings().sound) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime;
+    [0, 0.22].forEach(off => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'square'; o.frequency.value = 1320; g.gain.setValueAtTime(0.0001, t0 + off);
+      g.gain.exponentialRampToValueAtTime(0.35, t0 + off + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.16);
+      o.connect(g).connect(audioCtx.destination); o.start(t0 + off); o.stop(t0 + off + 0.18);
+    });
+  } catch {}
+}
+function alertInput() {
+  beep();
+  try { navigator.vibrate && navigator.vibrate([250, 120, 250]); } catch {}
+  const g = $('#gauges'); g.classList.add('flash'); setTimeout(() => g.classList.remove('flash'), 1500);
+}
+function pushUndo(u) { S.draft.undo.push(u); if (S.draft.undo.length > 100) S.draft.undo.shift(); }
+
+function onKey(k) {
+  const d = S.draft; if (!d) return;
+  if (k === 'back') kpBuf = kpBuf.slice(0, -1);
+  else if (k === 'undo') return undo();
+  else if (k === 'enter') return recordTemp();
+  else if (k === '.') { if (!kpBuf.includes('.') && kpBuf.length) kpBuf += '.'; }
+  else if (kpBuf.replace('.', '').length < 4) kpBuf += k;
+  renderKeypad();
+}
+function recordTemp() {
+  const d = S.draft, v = num(kpBuf);
+  if (v == null) { toast('温度を入力してください'); return; }
+  if (!d.startedAt) { d.points = d.points.filter(p => p.t !== 0); d.points.push({ t: 0, temp: v }); toast(`投入時 ${v}℃ を記録しました`); }
+  else {
+    const t = Math.round(elapsed());
+    const ex = d.points.find(p => p.t === t);
+    if (ex) { pushUndo({ type: 'tempEdit', t, prev: ex.temp }); ex.temp = v; } else { d.points.push({ t, temp: v }); pushUndo({ type: 'temp', t }); }
+  }
+  kpBuf = ''; saveDraft(); renderKeypad(); updateGauges(); drawLive(true);
+}
+function undo() {
+  const d = S.draft; const u = d.undo.pop();
+  if (!u) { toast('取り消す操作がありません'); return; }
+  if (u.type === 'temp') d.points = d.points.filter(p => p.t !== u.t);
+  if (u.type === 'tempEdit') { const p = d.points.find(x => x.t === u.t); if (p) p.temp = u.prev; }
+  if (u.type === 'event') { d.events = d.events.filter(e => e.type !== u.ev); if (u.prev != null) d.events.push({ type: u.ev, t: u.prev }); renderEvents(); }
+  if (u.type === 'change') { d.changes.pop(); d.current[u.kind] = u.prev; renderControls(); }
+  toast('1つ前の操作を取り消しました');
+  saveDraft(); updateGauges(); drawLive(true);
+}
+function charge() {
+  const d = S.draft;
+  if (kpBuf) { const v = num(kpBuf); if (v != null) { d.points = d.points.filter(p => p.t !== 0); d.points.push({ t: 0, temp: v }); } kpBuf = ''; }
+  d.startedAt = Date.now(); d.status = 'roasting';
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume && audioCtx.resume(); } catch {}
+  saveDraft(); renderRoast();
+}
+async function markEvent(id) {
+  const d = S.draft; if (!d.startedAt) return;
+  if (id === 'drop') {
+    const ok = await confirmSheet(`${fmt(elapsed())} で排出して、焙煎を終了しますか？`, '排出する', true);
+    if (!ok) return;
+    const t = Math.round(elapsed());
+    d.events = d.events.filter(e => e.type !== 'drop'); d.events.push({ type: 'drop', t });
+    d.dropTime = t; d.status = 'finishing'; stopTick(); releaseWake(); saveDraft(); show('finish'); return;
+  }
+  const t = Math.round(elapsed()); const prev = evTime(d, id);
+  d.events = d.events.filter(e => e.type !== id); d.events.push({ type: id, t });
+  pushUndo({ type: 'event', ev: id, prev });
+  toast(`${EV[id].label} ${fmt(t)}`);
+  saveDraft(); renderEvents(); drawLive(true);
+}
+function changeCtrl(kind, v) {
+  const d = S.draft; if (String(d.current[kind]) === String(v)) return;
+  if (!d.startedAt) { d.current[kind] = v; if (kind !== 'knob') d.initial[kind] = v; saveDraft(); renderControls(); return; }
+  const t = Math.round(elapsed());
+  pushUndo({ type: 'change', kind, prev: d.current[kind] });
+  d.current[kind] = v; d.changes.push({ t, kind, value: v });
+  saveDraft(); renderControls(); drawLive(true);
+  toast(`${fmt(t)} ${changeLabel({ kind, value: v })}`);
+}
+
+/* ---------- FINISH ---------- */
+function statTiles(r) {
+  const s = stats(r);
+  const tile = (label, v, unit) => `<div class="stat"><span class="label">${label}</span><span class="v">${v ?? '—'}${v != null && unit ? `<small>${unit}</small>` : ''}</span></div>`;
+  const tiles = [
+    tile('総焙煎時間', s.total != null ? fmt(s.total) : null),
+    tile('1ハゼ開始', s.fc != null ? fmt(s.fc) : null),
+    tile('1ハゼ→排出', s.dev != null ? fmt(s.dev) : null),
+    tile('発達比率', s.dtr, '%'),
+    tile('目減り率', s.loss, '%'),
+    tile(s.tpAuto ? '中点（推定）' : '中点', s.tp != null ? fmt(s.tp) : null),
+    tile('投入温度', s.charge, '℃'),
+    tile('排出時温度', s.dropTemp, '℃'),
+  ];
+  if (!s.model.sparse) tiles.push(
+    tile('中点温度', s.tpValue, '℃'),
+    tile('最大RoR（中点以降）', s.maxRor != null ? s.maxRor.toFixed(1) : null, '℃/分'),
+    tile('1ハゼ時温度', s.fcTemp, '℃'),
+    tile('乾燥 / メイラード', s.dry != null && s.maillard != null ? `${fmt(s.dry)} / ${fmt(s.maillard)}` : null));
+  return tiles.join('');
+}
+function renderFinish() {
+  const d = S.draft; if (!d) return show('home');
+  $('#fStats').innerHTML = statTiles(d);
+  $('#fDegree').innerHTML = opts(DEGREES, d.degree || '中煎り');
+  $('#fRoasted').value = d.roastedWeight ?? '';
+  $('#fMemo').value = d.memo || '';
+  updateLoss();
+}
+function updateLoss() {
+  const g = S.draft?.greenWeight, r = num($('#fRoasted').value);
+  $('#fLoss').textContent = g && r ? r1((g - r) / g * 100) + '%' : (g ? '—' : '生豆の重さが未入力');
+}
+async function saveFinish() {
+  const d = S.draft;
+  d.roastedWeight = num($('#fRoasted').value); d.degree = $('#fDegree').value; d.memo = $('#fMemo').value.trim();
+  const roast = fitCloud(toRecord(d));
+  S.roasts = S.roasts.filter(x => x.id !== roast.id); S.roasts.push(roast);
+  S.draft = null; saveDraft();
+  const ok = await Store.put('roasts', roast.id, roast);
+  toast(ok ? '記録を保存しました' : '端末に保存しました。通信が戻ったら自動で送ります');
+  S.detailId = roast.id; show('detail');
+}
+// 保存する記録は v2（schema:2）。手入力の記録も v2 だが、中身は v1 の上位互換（points・events・changes はそのまま）
+function toRecord(d) {
+  const rec = {
+    schema: 2,
+    id: d.id, beanId: d.beanId, beanName: d.beanName, origin: d.origin, process: d.process,
+    greenWeight: d.greenWeight, roastedWeight: d.roastedWeight ?? null, degree: d.degree,
+    roomTemp: d.roomTemp, weather: d.weather, interval: d.interval, initial: d.initial,
+    startedAt: d.startedAt, dropTime: d.dropTime,
+    events: d.events.slice().sort((a, b) => a.t - b.t), changes: d.changes.slice(),
+    memo: d.memo || '', tasting: d.tasting || null, savedAt: Date.now(),
+  };
+  const auto = d.source && d.source !== 'manual' && d.series && d.channels;
+  rec.source = auto ? d.source : 'manual';
+  if (auto) {
+    if (d.device) rec.device = d.device;
+    rec.channels = d.channels; rec.primary = d.primary; rec.series = d.series; rec.gaps = d.gaps || [];
+    rec.rorConfig = { method: 'lsq', window: settings().rorWindowAuto, smooth: settings().rorSmooth };
+    rec.points = RoastCore.toV1Points(RoastCore.normalizeRecord(rec));
+  } else {
+    rec.channels = [{ key: 'c1', role: 'et', name: '排気温度', color: '#C2410C', offset: 0 }]; rec.primary = 'c1';
+    rec.rorConfig = { method: 'interp', window: Number(settings().rorWindow) || 60 };
+    rec.points = d.points.slice().sort((a, b) => a.t - b.t).map(p => ({ t: p.t, temp: p.temp }));
+  }
+  return rec;
+}
+// claude.ai の db に入れるとき、150KB を超える記録だけ series を 2 秒平均に間引く
+function fitCloud(rec) {
+  if (Store.mode === 'cloud' && rec.series && JSON.stringify(rec).length > 150000) rec.series = RoastCore.decimate(rec.series, 2);
+  return rec;
+}
+
+/* ---------- DETAIL ---------- */
+function curRoast() { return S.roasts.find(r => r.id === S.detailId); }
+function renderDetail() {
+  const r = curRoast(); if (!r) return show('home');
+  $('#dDate').textContent = fmtDate(r.startedAt);
+  $('#dTitle').innerHTML = esc(r.beanName || '豆の名前なし') + (r.sample ? '<span class="tag">サンプル</span>' : '');
+  const sub = [r.origin, r.process, r.degree, r.greenWeight ? `生豆 ${r.greenWeight}g` : '', r.roastedWeight ? `焙煎後 ${r.roastedWeight}g` : '', r.roomTemp != null ? `室温 ${r.roomTemp}℃` : '', r.weather].filter(Boolean);
+  $('#dSub').textContent = sub.join('・');
+  $('#dStats').innerHTML = statTiles(r);
+  requestAnimationFrame(() => paintDetailChart(r));
+  // timeline: start settings, events, changes, temps of every channel
+  const s = stats(r), m = s.model;
+  const items = [];
+  if (r.initial) items.push({ t: 0, k: '開始設定', r: `火力 ${r.initial.fire}・D ${r.initial.damper}・回転 ${r.initial.rpm}` });
+  (r.events || []).forEach(e => EV[e.type] && items.push({ t: e.t, k: EV[e.type].label + (e.auto ? '（自動）' : ''), r: tempLabel(m, e.t) }));
+  (r.changes || []).forEach(c => items.push({ t: c.t, k: changeLabel(c), r: '', m: true }));
+  items.sort((a, b) => a.t - b.t);
+  $('#dTimeline').innerHTML = items.length ? items.map(i => `<li${i.r && i.r.includes(' / ') ? ' class="multi"' : ''}><span class="t">${fmt(i.t)}</span><span class="k" ${i.m ? 'style="font-weight:500"' : ''}>${esc(i.k)}</span><span class="r">${esc(i.r)}</span></li>`).join('') : '<li><span></span><span class="muted">記録がありません</span><span></span></li>';
+  $('#dMemoBox').innerHTML = `<h3>焙煎メモ</h3><div style="white-space:pre-wrap">${r.memo ? esc(r.memo) : '<span class="muted">メモはありません</span>'}</div>`;
+  const t = r.tasting || {};
+  $('#dScales').innerHTML = SCALES.map(([k, l]) => `<div class="scale"><label for="sc_${k}">${l}</label><input type="range" id="sc_${k}" min="1" max="5" step="1" value="${t[k] || 3}"><output id="o_${k}" class="num">${t[k] || 3}</output></div>`).join('') +
+    '<div class="small muted">1 = 弱い、5 = 強い</div>';
+  $('#tMemo').value = t.memo || ''; $('#tPair').value = t.pairing || '';
+  // edit section
+  $('#eGreen').value = r.greenWeight ?? ''; $('#eRoasted').value = r.roastedWeight ?? '';
+  $('#eDegree').innerHTML = opts(DEGREES, r.degree); $('#eMemo').value = r.memo || '';
+  if (m.sparse) {
+    const pts = withRor(r.points);
+    $('#eTempBox').innerHTML = '<h3>温度</h3><div class="table-wrap"><table class="edit" id="eTemps"><tr><th>時間</th><th>排気温度</th><th>RoR</th><th></th></tr>' + pts.map((p, i) => `<tr><td class="tcol">${fmt(p.t)}</td><td><input data-ti="${i}" data-t="${p.t}" inputmode="decimal" value="${p.temp}" aria-label="${fmt(p.t)} の温度"></td><td class="num">${p.ror != null ? p.ror.toFixed(1) : '—'}</td><td><button class="link" data-action="del-temp" data-t="${p.t}" style="color:var(--danger)">削除</button></td></tr>`).join('') + '</table></div>';
+  } else {
+    $('#eTempBox').innerHTML = `<h3>温度</h3><p class="small muted" style="margin:0">温度データは自動測定（${m.t.length} 点）です。1点ずつは直せません。センサーのずれは、チャンネルごとの補正値を後から足して直せます。</p>` +
+      m.channels.filter(c => c.role !== 'off' && m.v[c.key]).map(c => `<div class="field"><label class="label" for="eOff_${esc(c.key)}">${esc(c.name || c.key)} の補正（℃・全体に足す）${c.offset ? `　いまの補正 ${c.offset > 0 ? '+' : ''}${c.offset}` : ''}</label><input id="eOff_${esc(c.key)}" data-off="${esc(c.key)}" inputmode="decimal" placeholder="0"></div>`).join('');
+  }
+  $('#eEvents').innerHTML = '<tr><th>イベント</th><th>時間</th></tr>' + EVENTS.map(e => { const tt = evTime(r, e.id); return `<tr><td>${e.label}</td><td><input data-ev-edit="${e.id}" value="${tt != null ? fmt(tt) : ''}" placeholder="未記録" inputmode="numeric" aria-label="${e.label}の時間"></td></tr>`; }).join('');
+}
+// 全チャンネルの値。1本だけなら「152.3℃」、複数なら「BT 152.3℃ / ET 201.1℃」
+function tempLabel(m, t) {
+  const cs = m.channels.filter(c => c.role !== 'off' && m.v[c.key]);
+  const parts = [];
+  cs.forEach(c => { const v = RoastCore.valueAt(m, c.key, t); if (v != null) parts.push(cs.length > 1 ? `${chShort(c)} ${v.toFixed(1)}℃` : v + '℃'); });
+  return parts.join(' / ');
+}
+async function saveTasting() {
+  const r = curRoast(); if (!r) return;
+  const t = { done: true, memo: $('#tMemo').value.trim(), pairing: $('#tPair').value.trim(), at: Date.now() };
+  SCALES.forEach(([k]) => { t[k] = +$('#sc_' + k).value; });
+  r.tasting = t; r.savedAt = Date.now();
+  const ok = await Store.put('roasts', r.id, r);
+  toast(ok ? '評価を保存しました' : '端末に保存しました。通信が戻ったら自動で送ります');
+}
+async function saveEdit() {
+  const r = curRoast(); if (!r) return;
+  const evs = [];
+  for (const inp of document.querySelectorAll('#eEvents input[data-ev-edit]')) {
+    if (!inp.value.trim()) continue;
+    const tt = parseTime(inp.value); if (tt == null) { toast(`${EV[inp.dataset.evEdit].label} の時間は「分:秒」で入力してください`); return; }
+    evs.push({ type: inp.dataset.evEdit, t: tt });
+  }
+  r.greenWeight = num($('#eGreen').value); r.roastedWeight = num($('#eRoasted').value);
+  r.degree = $('#eDegree').value; r.memo = $('#eMemo').value.trim();
+  if (getModel(r).sparse) {
+    // 手入力の記録: 温度表から作り直す
+    const temps = [];
+    document.querySelectorAll('#eTemps input[data-t]').forEach(inp => { const v = num(inp.value); if (v != null) temps.push({ t: +inp.dataset.t, temp: v }); });
+    r.points = withRor(temps).map(p => ({ t: p.t, temp: p.temp }));
+  } else {
+    // 自動測定の記録: チャンネルごとの補正値を series 全体に足す（点は直さない）
+    const s = r.series, data = { ...s.data }; let chans = r.channels;
+    document.querySelectorAll('#eTempBox input[data-off]').forEach(inp => {
+      const d = num(inp.value), key = inp.dataset.off; if (!d || !data[key]) return;
+      const add = Math.round(d * (s.scale || 10));
+      data[key] = data[key].map(x => x == null ? null : x + add);
+      chans = chans.map(c => c.key === key ? { ...c, offset: r1((c.offset || 0) + d) } : c);
+    });
+    r.series = { ...s, data }; r.channels = chans;
+  }
+  r.events = evs.sort((a, b) => a.t - b.t);
+  const drop = evTime(r, 'drop'); if (drop != null) r.dropTime = drop;
+  if (!getModel(r).sparse || r.schema === 2) r.points = RoastCore.toV1Points(RoastCore.normalizeRecord(r)); // 互換用の points も作り直す
+  r.savedAt = Date.now();
+  const ok = await Store.put('roasts', r.id, r);
+  toast(ok ? '修正を保存しました（RoR も再計算しました）' : '端末に保存しました。通信が戻ったら自動で送ります');
+  $('#dEdit').open = false; renderDetail();
+}
+async function deleteRoast() {
+  const r = curRoast(); if (!r) return;
+  if (!await confirmSheet(`「${r.beanName || '豆の名前なし'}」${fmtDate(r.startedAt)} の記録を削除しますか？元に戻せません。`, '削除する', true)) return;
+  S.roasts = S.roasts.filter(x => x.id !== r.id);
+  await Store.remove('roasts', r.id); toast('削除しました'); show('home');
+}
+
+/* ---------- BEANS ---------- */
+function renderBeans() {
+  const counts = {}; S.roasts.forEach(r => { counts[r.beanId] = (counts[r.beanId] || 0) + 1; });
+  const list = S.beans.slice().sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  $('#beanList').innerHTML = '<h3>登録済みの豆</h3>' + (list.length ? list.map(b => `<div class="bean-item"><div><b>${esc(b.name)}</b><div class="small muted">${esc([b.origin, b.process, b.shop].filter(Boolean).join('・'))}${counts[b.id] ? `・焙煎 ${counts[b.id]} 回` : ''}</div></div><div class="row"><button class="link" data-action="edit-bean" data-id="${esc(b.id)}">編集</button><button class="link" style="color:var(--danger)" data-action="del-bean" data-id="${esc(b.id)}">削除</button></div></div>`).join('') : '<div class="empty small">まだ豆が登録されていません。焙煎の準備画面からも登録できます。</div>');
+}
+function fillBeanForm(b) {
+  S.editBeanId = b ? b.id : null;
+  $('#bFormTitle').textContent = b ? '豆を編集' : '豆を登録';
+  $('#bName').value = b?.name || ''; $('#bOrigin').value = b?.origin || ''; $('#bProcess').value = b?.process || ''; $('#bShop').value = b?.shop || ''; $('#bMemo').value = b?.memo || '';
+  $('#bCancel').hidden = !b;
+}
+async function saveBean() {
+  const name = $('#bName').value.trim(); if (!name) { toast('豆の名前を入力してください'); return; }
+  let b = S.beans.find(x => x.id === S.editBeanId);
+  if (!b) { b = { id: uid('b'), createdAt: Date.now() }; S.beans.push(b); }
+  Object.assign(b, { name, origin: $('#bOrigin').value.trim(), process: $('#bProcess').value.trim(), shop: $('#bShop').value.trim(), memo: $('#bMemo').value.trim() });
+  // keep roast records' names in sync
+  S.roasts.filter(r => r.beanId === b.id && r.beanName !== b.name).forEach(r => { r.beanName = b.name; Store.put('roasts', r.id, r); });
+  await Store.put('beans', b.id, b); toast('豆を保存しました'); fillBeanForm(null); renderBeans();
+}
+async function delBean(id) {
+  const b = S.beans.find(x => x.id === id); if (!b) return;
+  if (!await confirmSheet(`「${b.name}」を豆の一覧から削除しますか？焙煎の記録は残ります。`, '削除する', true)) return;
+  S.beans = S.beans.filter(x => x.id !== id); await Store.remove('beans', id); renderBeans();
+}
+
+/* ---------- SETTINGS / BACKUP ---------- */
+let settingsInterval = 30, settingsRorWindow = 60;
+function renderSettings() {
+  const st = settings();
+  $('#sFire').value = st.fireLabels.join(','); $('#sDamper').value = st.damperLabels.join(','); $('#sRpm').value = st.rpmOptions.join(',');
+  $('#sFlick').value = st.flick; $('#sCrash').value = st.crash;
+  settingsInterval = st.interval; segOn('#sInterval', settingsInterval);
+  settingsRorWindow = st.rorWindow; segOn('#sRorWindow', settingsRorWindow);
+  $('#storageNote').textContent = Store.mode === 'cloud'
+    ? '記録は claude.ai に保存されています。念のため、ときどき書き出しておくと安心です。'
+    : '記録はこの端末のブラウザにだけ保存されています。消えないよう、こまめに書き出してください。';
+  $('#exportFallback').hidden = true;
+}
+const splitList = s => s.split(/[,、，]/).map(x => x.trim()).filter(Boolean);
+async function saveSettings() {
+  const st = settings();
+  const fire = splitList($('#sFire').value), damper = splitList($('#sDamper').value), rpm = splitList($('#sRpm').value);
+  if (!fire.length || !damper.length || !rpm.length) { toast('ボタンの段階を1つ以上入力してください'); return; }
+  Object.assign(st, { fireLabels: fire, damperLabels: damper, rpmOptions: rpm, flick: num($('#sFlick').value) ?? 3, crash: num($('#sCrash').value) ?? 4, interval: settingsInterval, rorWindow: settingsRorWindow });
+  await Store.put('config', 'app', st); toast('設定を保存しました');
+}
+async function offerFile(filename, text) {
+  let artifact = false;
+  try {
+    artifact = !!(window.claude && window.claude.use);
+    const dl = artifact ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename, data: text }); return; }
+  } catch (e) { if (e && e.code === 'declined') return; }
+  // claude.ai の外（ESP32 配信・ファイルを直接開いたとき）は Blob のダウンロードを試す
+  if (!artifact) {
+    try {
+      const url = URL.createObjectURL(new Blob([text], { type: /\.json$/.test(filename) ? 'application/json' : 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast('ファイルを書き出しました'); return;
+    } catch {}
+  }
+  // fallback: show text to copy
+  if (S.view !== 'settings') show('settings');
+  $('#exportText').value = text; $('#exportFallback').hidden = false; $('#exportText').scrollIntoView({ block: 'center' });
+}
+const stamp = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; };
+const csvCell = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const csv = rows => '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+function csvOne(r) {
+  const s = stats(r), m = s.model;
+  const chs = m.channels.filter(c => c.role !== 'off' && m.v[c.key]);
+  const rows = [['豆', r.beanName], ['日時', fmtDate(r.startedAt)], ['焙煎度', r.degree], ['生豆(g)', r.greenWeight], ['焙煎後(g)', r.roastedWeight], ['目減り率(%)', s.loss], ['総時間', fmt(s.total)], ['発達比率(%)', s.dtr], [],
+    ['時間', '秒', ...chs.map(c => `${c.name || c.key}(℃)`), m.sparse ? 'RoR(℃/分)' : 'RoR(主チャンネル・℃/分)', 'イベント', '設定変更']];
+  const times = new Set([...(m.sparse ? s.pts.map(p => p.t) : []), ...(r.events || []).map(e => e.t), ...(r.changes || []).map(c => c.t)]);
+  if (!m.sparse) { const end = Math.floor(s.total ?? (s.pts.length ? s.pts[s.pts.length - 1].t : 0)); for (let t = 0; t <= end; t++) times.add(t); } // 1 秒ごとの行
+  const rorAt = new Map(s.pts.map(p => [p.t, p.ror]));
+  const exact = (c, t) => { if (m.sparse) { const p = c.key === m.primary ? s.pts.find(x => x.t === t) : null; return p ? p.temp : ''; } const v = RoastCore.valueAt(m, c.key, t); return v == null ? '' : v; };
+  [...times].sort((a, b) => a - b).forEach(t => {
+    const ror = rorAt.get(t);
+    rows.push([fmt(t), t, ...chs.map(c => exact(c, t)), ror != null ? ror : '', (r.events || []).filter(e => e.t === t).map(e => EV[e.type]?.label).join(' / '), (r.changes || []).filter(c => c.t === t).map(changeLabel).join(' / ')]);
+  });
+  return csv(rows);
+}
+function csvAll() {
+  const rows = [['日時', '豆', '産地', '精製', '焙煎度', '生豆(g)', '焙煎後(g)', '目減り率(%)', '総時間', '1ハゼ開始', '1ハゼ→排出', '発達比率(%)', '投入温度', '排出時温度', '室温', '天気', '酸味', '苦味', '甘み', '香り', 'コク', '味のメモ', 'お菓子との相性', '焙煎メモ']];
+  S.roasts.slice().sort((a, b) => (a.startedAt || 0) - (b.startedAt || 0)).forEach(r => {
+    const s = stats(r), t = r.tasting || {};
+    rows.push([fmtDate(r.startedAt), r.beanName, r.origin, r.process, r.degree, r.greenWeight, r.roastedWeight, s.loss, fmt(s.total), s.fc != null ? fmt(s.fc) : '', s.dev != null ? fmt(s.dev) : '', s.dtr, s.charge, s.dropTemp, r.roomTemp, r.weather, t.acidity, t.bitterness, t.sweetness, t.aroma, t.body, t.memo, t.pairing, r.memo]);
+  });
+  return csv(rows);
+}
+async function importJson(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || !Array.isArray(data.roasts)) throw 0;
+    if (data.version != null && data.version !== 1 && data.version !== 2) { toast(`このバックアップは新しい形式（version ${data.version}）のため読み込めません。アプリを新しくしてください`); return; }
+    const good = [], bad = [];
+    data.roasts.forEach(r => {
+      const v = RoastCore.validate(r);
+      if (!v.ok) { bad.push(v.errors[0]); return; }
+      try { RoastCore.normalizeRecord(r); } catch { bad.push('正規化できません'); return; }
+      if (r.schema === 2 && r.series && !Array.isArray(r.points)) r.points = RoastCore.toV1Points(RoastCore.normalizeRecord(r)); // v1 アプリ用の points を補う
+      good.push(r);
+    });
+    const ok = await confirmSheet(`焙煎 ${good.length} 件・豆 ${(data.beans || []).length} 件を読み込みます。同じ記録は上書きされます。${bad.length ? `形式が正しくない記録 ${bad.length} 件は読み込みません。` : ''}`, '読み込む');
+    if (!ok) return;
+    for (const r of good) { S.roasts = S.roasts.filter(x => x.id !== r.id); S.roasts.push(r); await Store.put('roasts', r.id, r); }
+    for (const b of data.beans || []) { if (!b.id) continue; S.beans = S.beans.filter(x => x.id !== b.id); S.beans.push(b); await Store.put('beans', b.id, b); }
+    if (data.settings) { S.settings = { ...DEFAULTS, ...data.settings }; await Store.put('config', 'app', S.settings); }
+    toast(bad.length ? `${good.length} 件を読み込みました（${bad.length} 件は形式が正しくないため除きました）` : '読み込みました');
+  } catch { toast('このファイルは読み込めませんでした。書き出したバックアップ（.json）を選んでください'); }
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', async e => {
+  const lg = e.target.closest('[data-lg]');
+  if (lg) {
+    const key = lg.dataset.lg; if (hiddenCh.has(key)) hiddenCh.delete(key); else hiddenCh.add(key);
+    if (lg.closest('#liveLegend')) { paintLiveLegend(); drawLive(true); } else { const r = curRoast(); if (r) paintDetailChart(r); }
+    return;
+  }
+  const k = e.target.closest('[data-k]'); if (k) { onKey(k.dataset.k); return; }
+  const ev = e.target.closest('[data-ev]'); if (ev) { markEvent(ev.dataset.ev); return; }
+  const ctl = e.target.closest('[data-ctrl]'); if (ctl) { changeCtrl(ctl.dataset.ctrl, ctl.dataset.v); return; }
+  const segB = e.target.closest('#suInterval button, #sInterval button, #sRorWindow button');
+  if (segB) {
+    const v = +segB.dataset.v;
+    if (segB.closest('#suInterval')) { setupInterval = v; segOn('#suInterval', v); }
+    else if (segB.closest('#sRorWindow')) { settingsRorWindow = v; segOn('#sRorWindow', v); }
+    else { settingsInterval = v; segOn('#sInterval', v); }
+    return;
+  }
+  const a = e.target.closest('[data-action]'); if (!a) return;
+  const act = a.dataset.action;
+  if (act === 'go') { if (a.dataset.to === 'beans') fillBeanForm(null); show(a.dataset.to); }
+  else if (act === 'new-roast') { if (S.draft) { toast('焙煎中の記録があります。続けるか破棄してください'); return; } show('setup'); }
+  else if (act === 'to-roast') startSetup();
+  else if (act === 'charge') charge();
+  else if (act === 'toggle-sound') { settings().sound = !settings().sound; $('#soundBtn').textContent = settings().sound ? '音：オン' : '音：オフ'; Store.put('config', 'app', settings()); if (settings().sound) beep(); }
+  else if (act === 'abort-roast') { if (await confirmSheet('この焙煎を中止して、記録を破棄しますか？', '中止する', true)) { stopTick(); releaseWake(); S.draft = null; saveDraft(); show('home'); } }
+  else if (act === 'resume') show(S.draft.status === 'finishing' ? 'finish' : 'roast');
+  else if (act === 'discard-draft') { if (await confirmSheet('途中の記録を破棄しますか？元に戻せません。', '破棄する', true)) { S.draft = null; saveDraft(); renderHome(); } }
+  else if (act === 'save-finish') saveFinish();
+  else if (act === 'open') { S.detailId = a.dataset.id; show('detail'); }
+  else if (act === 'save-tasting') saveTasting();
+  else if (act === 'save-edit') saveEdit();
+  else if (act === 'del-temp') { a.closest('tr').remove(); }
+  else if (act === 'delete-roast') deleteRoast();
+  else if (act === 'csv-one') { const r = curRoast(); if (r) offerFile(`焙煎_${(r.beanName || 'roast').replace(/[\\/:*?"<>|\s]/g, '_')}_${fmtDate(r.startedAt).split(' ')[0].replace(/\//g, '')}.csv`, csvOne(r)); }
+  else if (act === 'csv-all') offerFile(`焙煎一覧_${stamp()}.csv`, csvAll());
+  else if (act === 'export-json') offerFile(`焙煎記録バックアップ_${stamp()}.json`, JSON.stringify({ app: 'roastlog', version: 2, exportedAt: new Date().toISOString(), roasts: S.roasts, beans: S.beans, settings: S.settings }, null, 1));
+  else if (act === 'copy-export') { const ta = $('#exportText'); try { await navigator.clipboard.writeText(ta.value); toast('コピーしました'); } catch { ta.select(); toast('選択しました。長押しでコピーしてください'); } }
+  else if (act === 'save-bean') saveBean();
+  else if (act === 'clear-bean') fillBeanForm(null);
+  else if (act === 'edit-bean') { fillBeanForm(S.beans.find(b => b.id === a.dataset.id)); window.scrollTo(0, 0); }
+  else if (act === 'del-bean') delBean(a.dataset.id);
+  else if (act === 'save-settings') saveSettings();
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'suBean') $('#suNewBean').hidden = e.target.value !== '__new';
+  if (e.target.id === 'knobSel') changeCtrl('knob', e.target.value || null);
+  if (e.target.id === 'importFile' && e.target.files[0]) { importJson(e.target.files[0]); e.target.value = ''; }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'search') renderHome();
+  if (e.target.id === 'fRoasted') updateLoss();
+  if (e.target.id && e.target.id.startsWith('sc_')) $('#o_' + e.target.id.slice(3)).textContent = e.target.value;
+});
+// physical keyboard support while roasting (handy on a PC)
+document.addEventListener('keydown', e => {
+  if (S.view !== 'roast' || e.target.matches('input, textarea, select')) return;
+  if (/^[0-9.]$/.test(e.key)) { onKey(e.key); e.preventDefault(); }
+  else if (e.key === 'Backspace') { onKey('back'); e.preventDefault(); }
+  else if (e.key === 'Enter') { if (S.draft && !S.draft.startedAt) charge(); else onKey('enter'); e.preventDefault(); }
+});
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (S.view === 'roast') drawLive(true); if (S.view === 'detail' && curRoast()) paintDetailChart(curRoast()); }, 150); });
+window.addEventListener('online', () => Store.flush());
+if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (S.view === 'roast') drawLive(true); if (S.view === 'detail') renderDetail(); });
+
+/* ---------- boot ---------- */
+S.draft = ls.get(DRAFT_KEY);
+show('home');
+(async () => {
+  await Store.init();
+  const data = await Store.loadAll();
+  S.roasts = data.roasts || []; S.beans = data.beans || [];
+  S.settings = { ...DEFAULTS, ...(data.settings || {}) };
+  S.loaded = true; S.loadFrom = data.from;
+  if (S.view === 'home') renderHome();
+  if (data.from === 'cache') toast('通信できないため、前回の記録を表示しています');
+  Store.flush();
+})();
+})();
+</script>
+
+</body></html>
