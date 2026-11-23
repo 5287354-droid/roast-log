@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roast-log.local/schema/ws-messages.schema.json",
+  "title": "焙煎記録ノート WebSocket メッセージ (PROTO_VERSION = 1)",
+  "description": "SPEC 2章。温度は 0.1℃ 単位の整数、欠損は null。チャンネル配列の添字 0..2 = c1..c3。",
+  "oneOf": [
+    { "$ref": "#/$defs/hello" }, { "$ref": "#/$defs/s" }, { "$ref": "#/$defs/bf" },
+    { "$ref": "#/$defs/st" }, { "$ref": "#/$defs/cfg" }, { "$ref": "#/$defs/ack" }, { "$ref": "#/$defs/pong" },
+    { "$ref": "#/$defs/hi" }, { "$ref": "#/$defs/bf_req" }, { "$ref": "#/$defs/ping" },
+    { "$ref": "#/$defs/setcfg" }, { "$ref": "#/$defs/identify" }
+  ],
+  "$defs": {
+    "temp": { "type": ["integer", "null"] },
+    "fault": { "type": "integer", "minimum": 0, "maximum": 8 },
+    "trio_temp": { "type": "array", "items": { "$ref": "#/$defs/temp" }, "minItems": 3, "maxItems": 3 },
+    "trio_fault": { "type": "array", "items": { "$ref": "#/$defs/fault" }, "minItems": 3, "maxItems": 3 },
+    "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "role": { "enum": ["bt", "et", "amb", "inlet", "off"] },
+    "channel": {
+      "type": "object",
+      "required": ["idx", "enabled", "role", "name", "color", "offset"],
+      "properties": {
+        "idx": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "enabled": { "type": "boolean" },
+        "role": { "$ref": "#/$defs/role" },
+        "name": { "type": "string" },
+        "color": { "$ref": "#/$defs/color" },
+        "offset": { "type": "number" }
+      }
+    },
+    "cfgBody": {
+      "type": "object",
+      "required": ["channels", "amp", "rateHz"],
+      "properties": {
+        "channels": { "type": "array", "items": { "$ref": "#/$defs/channel" }, "minItems": 3, "maxItems": 3 },
+        "amp": {
+          "type": "object",
+          "required": ["type", "mains", "avg"],
+          "properties": { "type": { "type": "string" }, "mains": { "enum": [50, 60] }, "avg": { "enum": [1, 2, 4, 8, 16] } }
+        },
+        "rateHz": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "hello": {
+      "type": "object",
+      "required": ["type", "proto", "fw", "model", "amp", "id", "bootId", "ms", "seq", "bufFrom", "rateHz", "chMax", "speed", "cfg"],
+      "properties": {
+        "type": { "const": "hello" },
+        "proto": { "const": 1 },
+        "fw": { "type": "string" }, "model": { "type": "string" }, "amp": { "type": "string" }, "id": { "type": "string" },
+        "bootId": { "type": "string", "pattern": "^[0-9a-f]{8}$" },
+        "ms": { "type": "integer", "minimum": 0 },
+        "seq": { "type": "integer", "minimum": 0 },
+        "bufFrom": { "type": "integer", "minimum": 0 },
+        "rateHz": { "type": "integer", "minimum": 1 },
+        "chMax": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "speed": { "type": "number", "minimum": 1 },
+        "cfg": { "$ref": "#/$defs/cfgBody" }
+      }
+    },
+    "s": {
+      "type": "object",
+      "required": ["type", "seq", "ms", "v", "f", "cj"],
+      "properties": {
+        "type": { "const": "s" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "ms": { "type": "integer", "minimum": 0 },
+        "v": { "$ref": "#/$defs/trio_temp" },
+        "f": { "$ref": "#/$defs/trio_fault" },
+        "cj": { "type": ["integer", "null"] }
+      }
+    },
+    "bf": {
+      "type": "object",
+      "required": ["type", "from", "to", "lost", "ms0", "dt", "v", "f"],
+      "properties": {
+        "type": { "const": "bf" },
+        "from": { "type": "integer", "minimum": 0 },
+        "to": { "type": "integer", "minimum": -1 },
+        "lost": { "type": "boolean" },
+        "ms0": { "type": "integer", "minimum": 0 },
+        "dt": { "type": "integer", "minimum": 1 },
+        "v": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "array", "maxItems": 300, "items": { "$ref": "#/$defs/temp" } } },
+        "f": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "array", "maxItems": 300, "items": { "$ref": "#/$defs/fault" } } }
+      }
+    },
+    "st": {
+      "type": "object",
+      "required": ["type", "rssi", "mode", "ip", "heap", "uptime", "clients"],
+      "properties": {
+        "type": { "const": "st" },
+        "rssi": { "type": "integer" },
+        "mode": { "enum": ["sta", "ap", "ap_sta"] },
+        "ip": { "type": "string" },
+        "heap": { "type": "integer", "minimum": 0 },
+        "uptime": { "type": "integer", "minimum": 0 },
+        "clients": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cfg": {
+      "type": "object",
+      "required": ["type", "channels", "amp", "rateHz"],
+      "properties": {
+        "type": { "const": "cfg" },
+        "channels": { "type": "array", "items": { "$ref": "#/$defs/channel" }, "minItems": 3, "maxItems": 3 },
+        "amp": { "type": "object", "required": ["type", "mains", "avg"], "properties": { "type": { "type": "string" }, "mains": { "enum": [50, 60] }, "avg": { "enum": [1, 2, 4, 8, 16] } } },
+        "rateHz": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "ack": {
+      "type": "object",
+      "required": ["type", "id", "ok"],
+      "properties": {
+        "type": { "const": "ack" },
+        "id": { "type": "string" },
+        "ok": { "type": "boolean" },
+        "err": { "type": "string" }
+      }
+    },
+    "pong": {
+      "type": "object",
+      "required": ["type", "id", "t", "ms"],
+      "properties": {
+        "type": { "const": "pong" }, "id": { "type": "string" },
+        "t": { "type": "integer" }, "ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "hi": {
+      "type": "object",
+      "required": ["type", "app", "ver", "lastSeq"],
+      "properties": {
+        "type": { "const": "hi" }, "app": { "type": "string" }, "ver": { "type": "string" },
+        "bootId": { "type": ["string", "null"] },
+        "lastSeq": { "type": ["integer", "null"] }
+      }
+    },
+    "bf_req": {
+      "type": "object",
+      "required": ["type", "from", "to"],
+      "properties": { "type": { "const": "bf_req" }, "from": { "type": "integer", "minimum": 0 }, "to": { "type": "integer", "minimum": 0 } }
+    },
+    "ping": {
+      "type": "object",
+      "required": ["type", "id", "t"],
+      "properties": { "type": { "const": "ping" }, "id": { "type": "string" }, "t": { "type": "integer" } }
+    },
+    "setcfg": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "const": "setcfg" }, "id": { "type": "string" },
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["idx"],
+            "properties": {
+              "idx": { "type": "integer", "minimum": 0, "maximum": 2 },
+              "enabled": { "type": "boolean" }, "role": { "$ref": "#/$defs/role" },
+              "name": { "type": "string" }, "color": { "$ref": "#/$defs/color" }, "offset": { "type": "number" }
+            }
+          }
+        },
+        "amp": { "type": "object", "properties": { "mains": { "enum": [50, 60] }, "avg": { "enum": [1, 2, 4, 8, 16] } } }
+      }
+    },
+    "identify": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": { "type": { "const": "identify" }, "id": { "type": "string" } }
+    }
+  }
+}

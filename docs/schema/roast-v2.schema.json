@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://roast-log.local/schema/roast-v2.schema.json",
+  "title": "焙煎記録 v2 (schema: 2)",
+  "description": "SPEC 3章。v1 のフィールドはそのまま残す。未知のフィールドは許す（保持する）。",
+  "type": "object",
+  "required": ["schema", "id", "startedAt", "dropTime", "events", "changes", "points", "channels", "source"],
+  "properties": {
+    "schema": { "const": 2 },
+    "id": { "type": "string", "minLength": 1 },
+    "beanId": { "type": ["string", "null"] },
+    "beanName": { "type": ["string", "null"] },
+    "origin": { "type": ["string", "null"] },
+    "process": { "type": ["string", "null"] },
+    "greenWeight": { "type": ["number", "null"] },
+    "roastedWeight": { "type": ["number", "null"] },
+    "degree": { "type": ["string", "null"] },
+    "roomTemp": { "type": ["number", "null"] },
+    "weather": { "type": ["string", "null"] },
+    "interval": { "type": ["number", "null"] },
+    "initial": { "type": ["object", "null"] },
+    "startedAt": { "type": "integer" },
+    "dropTime": { "type": ["number", "null"] },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["type", "t"],
+        "properties": {
+          "type": { "enum": ["tp", "dry", "fc1", "fc1e", "fc2", "drop"] },
+          "t": { "type": "number" },
+          "auto": { "type": "boolean" }
+        }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": { "type": "object", "required": ["t", "kind", "value"], "properties": { "t": { "type": "number" }, "kind": { "type": "string" } } }
+    },
+    "memo": { "type": "string" },
+    "tasting": { "type": ["object", "null"] },
+    "savedAt": { "type": "integer" },
+    "source": { "enum": ["esp32", "sim", "manual"] },
+    "device": {
+      "type": ["object", "null"],
+      "properties": { "model": { "type": "string" }, "fw": { "type": "string" }, "amp": { "type": "string" }, "id": { "type": "string" } }
+    },
+    "channels": {
+      "type": "array", "minItems": 1, "maxItems": 3,
+      "items": {
+        "type": "object", "required": ["key", "role", "name", "color"],
+        "properties": {
+          "key": { "enum": ["c1", "c2", "c3"] },
+          "role": { "enum": ["bt", "et", "amb", "inlet", "off"] },
+          "name": { "type": "string" }, "color": { "type": "string" }, "offset": { "type": "number" }
+        }
+      }
+    },
+    "primary": { "enum": ["c1", "c2", "c3"] },
+    "series": {
+      "type": "object",
+      "required": ["dt", "start", "scale", "data"],
+      "properties": {
+        "dt": { "type": "number", "exclusiveMinimum": 0 },
+        "start": { "type": "integer", "maximum": 0 },
+        "scale": { "type": "number", "exclusiveMinimum": 0 },
+        "decimated": { "type": "integer", "minimum": 2 },
+        "data": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": ["integer", "null"] } }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+    },
+    "rorConfig": {
+      "type": "object",
+      "properties": { "method": { "type": "string" }, "window": { "type": "number" }, "smooth": { "type": "number" } }
+    },
+    "points": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["t", "temp"],
+        "properties": { "t": { "type": "number" }, "temp": { "type": "number" }, "ror": { "type": ["number", "null"] } }
+      }
+    }
+  }
+}

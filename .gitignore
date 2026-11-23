@@ -1,0 +1,8 @@
+node_modules/
+firmware/data/
+firmware/.pio/
+.pio/
+test-results/
+playwright-report/
+*.log
+.DS_Store

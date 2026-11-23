@@ -1,0 +1,142 @@
+{
+ "id": "rmq2manual1",
+ "beanId": "bmq1a0001",
+ "beanName": "エチオピア イルガチェフェ G1",
+ "origin": "エチオピア",
+ "process": "ウォッシュト",
+ "greenWeight": 200,
+ "roastedWeight": 172,
+ "degree": "中煎り",
+ "roomTemp": 19,
+ "weather": "晴れ",
+ "interval": 30,
+ "initial": {
+  "fire": "中",
+  "damper": "閉",
+  "rpm": "7"
+ },
+ "startedAt": 1764100000000,
+ "dropTime": 600,
+ "points": [
+  {
+   "t": 0,
+   "temp": 207.5
+  },
+  {
+   "t": 30,
+   "temp": 111
+  },
+  {
+   "t": 60,
+   "temp": 93.4
+  },
+  {
+   "t": 90,
+   "temp": 96.8
+  },
+  {
+   "t": 120,
+   "temp": 106.5
+  },
+  {
+   "t": 150,
+   "temp": 117.4
+  },
+  {
+   "t": 180,
+   "temp": 127.2
+  },
+  {
+   "t": 210,
+   "temp": 137.4
+  },
+  {
+   "t": 240,
+   "temp": 145
+  },
+  {
+   "t": 270,
+   "temp": 153.5
+  },
+  {
+   "t": 300,
+   "temp": 160.2
+  },
+  {
+   "t": 330,
+   "temp": 166.8
+  },
+  {
+   "t": 360,
+   "temp": 173
+  },
+  {
+   "t": 390,
+   "temp": 178.3
+  },
+  {
+   "t": 420,
+   "temp": 182.8
+  },
+  {
+   "t": 450,
+   "temp": 187.8
+  },
+  {
+   "t": 480,
+   "temp": 191.8
+  },
+  {
+   "t": 510,
+   "temp": 196.1
+  },
+  {
+   "t": 540,
+   "temp": 199.3
+  },
+  {
+   "t": 570,
+   "temp": 202.5
+  },
+  {
+   "t": 600,
+   "temp": 206.9
+  }
+ ],
+ "events": [
+  {
+   "type": "dry",
+   "t": 290
+  },
+  {
+   "type": "fc1",
+   "t": 510
+  },
+  {
+   "type": "drop",
+   "t": 600
+  }
+ ],
+ "changes": [
+  {
+   "t": 120,
+   "kind": "fire",
+   "value": "強"
+  }
+ ],
+ "memo": "",
+ "tasting": null,
+ "savedAt": 1764100690000,
+ "schema": 2,
+ "source": "manual",
+ "channels": [
+  {
+   "key": "c1",
+   "role": "et",
+   "name": "排気温度",
+   "color": "#C2410C",
+   "offset": 0
+  }
+ ],
+ "primary": "c1"
+}

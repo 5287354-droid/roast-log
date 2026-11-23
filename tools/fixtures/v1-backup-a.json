@@ -1,0 +1,225 @@
+{
+ "app": "roastlog",
+ "version": 1,
+ "exportedAt": "2026-11-23T01:00:00.000Z",
+ "roasts": [
+  {
+   "id": "rmq1aaaa01",
+   "beanId": "bmq1a0001",
+   "beanName": "エチオピア イルガチェフェ G1",
+   "origin": "エチオピア",
+   "process": "ウォッシュト",
+   "greenWeight": 200,
+   "roastedWeight": 171,
+   "degree": "中浅煎り",
+   "roomTemp": 18.4,
+   "weather": "晴れ",
+   "interval": 30,
+   "initial": {
+    "fire": "中",
+    "damper": "閉",
+    "rpm": "7"
+   },
+   "startedAt": 1763870000000,
+   "dropTime": 630,
+   "points": [
+    {
+     "t": 0,
+     "temp": 207.5,
+     "ror": null
+    },
+    {
+     "t": 30,
+     "temp": 111.2,
+     "ror": -192.6
+    },
+    {
+     "t": 60,
+     "temp": 93,
+     "ror": -114.5
+    },
+    {
+     "t": 90,
+     "temp": 96.5,
+     "ror": -14.7
+    },
+    {
+     "t": 120,
+     "temp": 106.3,
+     "ror": 13.3
+    },
+    {
+     "t": 150,
+     "temp": 117.4,
+     "ror": 20.9
+    },
+    {
+     "t": 180,
+     "temp": 127,
+     "ror": 20.7
+    },
+    {
+     "t": 210,
+     "temp": 137,
+     "ror": 19.6
+    },
+    {
+     "t": 240,
+     "temp": 145,
+     "ror": 18
+    },
+    {
+     "t": 270,
+     "temp": 153.7,
+     "ror": 16.7
+    },
+    {
+     "t": 300,
+     "temp": 160.1,
+     "ror": 15.1
+    },
+    {
+     "t": 330,
+     "temp": 166.1,
+     "ror": 12.4
+    },
+    {
+     "t": 360,
+     "temp": 172.8,
+     "ror": 12.7
+    },
+    {
+     "t": 390,
+     "temp": 177.7,
+     "ror": 11.6
+    },
+    {
+     "t": 420,
+     "temp": 183.5,
+     "ror": 10.7
+    },
+    {
+     "t": 450,
+     "temp": 188.1,
+     "ror": 10.4
+    },
+    {
+     "t": 480,
+     "temp": 192,
+     "ror": 8.5
+    },
+    {
+     "t": 510,
+     "temp": 196.3,
+     "ror": 8.2
+    },
+    {
+     "t": 540,
+     "temp": 199.7,
+     "ror": 7.7
+    },
+    {
+     "t": 570,
+     "temp": 202.8,
+     "ror": 6.5
+    },
+    {
+     "t": 600,
+     "temp": 207.2,
+     "ror": 7.5
+    },
+    {
+     "t": 630,
+     "temp": 209.8,
+     "ror": 7
+    }
+   ],
+   "events": [
+    {
+     "type": "tp",
+     "t": 60
+    },
+    {
+     "type": "dry",
+     "t": 300
+    },
+    {
+     "type": "fc1",
+     "t": 540
+    },
+    {
+     "type": "drop",
+     "t": 630
+    }
+   ],
+   "changes": [
+    {
+     "t": 150,
+     "kind": "fire",
+     "value": "強"
+    },
+    {
+     "t": 420,
+     "kind": "damper",
+     "value": "1/2"
+    },
+    {
+     "t": 520,
+     "kind": "fire",
+     "value": "中"
+    }
+   ],
+   "memo": "初回。1ハゼがきれいに聞こえた",
+   "tasting": {
+    "done": true,
+    "memo": "花のような香り。後味すっきり",
+    "pairing": "レモンケーキ",
+    "at": 1763956000000,
+    "acidity": 4,
+    "bitterness": 2,
+    "sweetness": 3,
+    "aroma": 4,
+    "body": 2
+   },
+   "savedAt": 1763870720000
+  }
+ ],
+ "beans": [
+  {
+   "id": "bmq1a0001",
+   "name": "エチオピア イルガチェフェ G1",
+   "origin": "エチオピア",
+   "process": "ウォッシュト",
+   "shop": "〇〇珈琲豆店",
+   "memo": "浅めがおいしい",
+   "createdAt": 1763000000000
+  }
+ ],
+ "settings": {
+  "interval": 30,
+  "flick": 3,
+  "crash": 4,
+  "rorWindow": 60,
+  "fireLabels": [
+   "弱",
+   "中",
+   "強"
+  ],
+  "damperLabels": [
+   "閉",
+   "1/4",
+   "1/2",
+   "3/4",
+   "全開"
+  ],
+  "rpmOptions": [
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10"
+  ],
+  "sound": true
+ }
+}

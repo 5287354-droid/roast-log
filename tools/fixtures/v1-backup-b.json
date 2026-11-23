@@ -1,0 +1,258 @@
+{
+ "app": "roastlog",
+ "version": 1,
+ "exportedAt": "2026-11-23T02:00:00.000Z",
+ "roasts": [
+  {
+   "id": "rmq1bbbb01",
+   "beanId": null,
+   "beanName": "",
+   "origin": "",
+   "process": "",
+   "greenWeight": null,
+   "roastedWeight": null,
+   "degree": "中煎り",
+   "roomTemp": null,
+   "weather": null,
+   "interval": 60,
+   "initial": {
+    "fire": "中",
+    "damper": "閉",
+    "rpm": "7"
+   },
+   "startedAt": 1763780000000,
+   "dropTime": 720,
+   "points": [
+    {
+     "t": 0,
+     "temp": 207,
+     "ror": null
+    },
+    {
+     "t": 60,
+     "temp": 92.7,
+     "ror": -114.3
+    },
+    {
+     "t": 120,
+     "temp": 106.6,
+     "ror": 13.9
+    },
+    {
+     "t": 180,
+     "temp": 127.4,
+     "ror": 20.8
+    },
+    {
+     "t": 240,
+     "temp": 145,
+     "ror": 17.6
+    },
+    {
+     "t": 300,
+     "temp": 159.7,
+     "ror": 14.7
+    },
+    {
+     "t": 360,
+     "temp": 173.2,
+     "ror": 13.5
+    },
+    {
+     "t": 420,
+     "temp": 183.5,
+     "ror": 10.3
+    },
+    {
+     "t": 480,
+     "temp": 191.9,
+     "ror": 8.4
+    },
+    {
+     "t": 540,
+     "temp": 199.2,
+     "ror": 7.3
+    },
+    {
+     "t": 600,
+     "temp": 207.4,
+     "ror": 8.2
+    },
+    {
+     "t": 660,
+     "temp": 211.6,
+     "ror": 4.2
+    },
+    {
+     "t": 720,
+     "temp": 215.1,
+     "ror": 3.5
+    }
+   ],
+   "events": [
+    {
+     "type": "drop",
+     "t": 720
+    }
+   ],
+   "changes": [],
+   "memo": "",
+   "tasting": null,
+   "savedAt": 1763780810000
+  },
+  {
+   "id": "rmq1bbbb02",
+   "beanId": "bmq1b0002",
+   "beanName": "ブラジル セラード",
+   "origin": "ブラジル",
+   "process": "ナチュラル",
+   "greenWeight": 150,
+   "roastedWeight": 128.5,
+   "degree": "中深煎り",
+   "roomTemp": 22,
+   "weather": "曇り",
+   "interval": 45,
+   "initial": {
+    "fire": "強",
+    "damper": "1/4",
+    "rpm": "8"
+   },
+   "startedAt": 1763790000000,
+   "dropTime": 585,
+   "points": [
+    {
+     "t": 0,
+     "temp": 207.5,
+     "ror": null
+    },
+    {
+     "t": 45,
+     "temp": 97,
+     "ror": -147.3
+    },
+    {
+     "t": 90,
+     "temp": 97,
+     "ror": -36.8
+    },
+    {
+     "t": 135,
+     "temp": 111.4,
+     "ror": 14.4
+    },
+    {
+     "t": 180,
+     "temp": 127.4,
+     "ror": 20.8
+    },
+    {
+     "t": 225,
+     "temp": 140.9,
+     "ror": 18.8
+    },
+    {
+     "t": 270,
+     "temp": 153.3,
+     "ror": 16.9
+    },
+    {
+     "t": 315,
+     "temp": 163.6,
+     "ror": 14.4
+    },
+    {
+     "t": 360,
+     "temp": 172.8,
+     "ror": 12.6
+    },
+    {
+     "t": 405,
+     "temp": 180.8,
+     "ror": 11.1
+    },
+    {
+     "t": 450,
+     "temp": 187.4,
+     "ror": 9.3
+    },
+    {
+     "t": 495,
+     "temp": 194.4,
+     "ror": 9.2
+    },
+    {
+     "t": 540,
+     "temp": 199.2,
+     "ror": 7.1
+    },
+    {
+     "t": 585,
+     "temp": 204.6,
+     "ror": 7
+    }
+   ],
+   "events": [
+    {
+     "type": "dry",
+     "t": 270
+    },
+    {
+     "type": "fc1",
+     "t": 495
+    },
+    {
+     "type": "drop",
+     "t": 585
+    }
+   ],
+   "changes": [
+    {
+     "t": 200,
+     "kind": "knob",
+     "value": "3"
+    }
+   ],
+   "memo": "",
+   "tasting": null,
+   "savedAt": 1763790675000
+  }
+ ],
+ "beans": [
+  {
+   "id": "bmq1b0002",
+   "name": "ブラジル セラード",
+   "origin": "ブラジル",
+   "process": "ナチュラル",
+   "shop": "",
+   "memo": "",
+   "createdAt": 1763100000000
+  }
+ ],
+ "settings": {
+  "interval": 30,
+  "flick": 3,
+  "crash": 4,
+  "rorWindow": 60,
+  "fireLabels": [
+   "弱",
+   "中",
+   "強"
+  ],
+  "damperLabels": [
+   "閉",
+   "1/4",
+   "1/2",
+   "3/4",
+   "全開"
+  ],
+  "rpmOptions": [
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10"
+  ],
+  "sound": true
+ }
+}

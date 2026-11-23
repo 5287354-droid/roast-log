@@ -1,0 +1,216 @@
+{
+ "app": "roastlog",
+ "version": 1,
+ "exportedAt": "2026-11-23T03:00:00.000Z",
+ "roasts": [
+  {
+   "id": "rmq1cccc01",
+   "beanId": "bmq1c0003",
+   "beanName": "コロンビア \"Huila\" <特別>",
+   "origin": "コロンビア",
+   "process": "ウォッシュト",
+   "greenWeight": 250,
+   "roastedWeight": null,
+   "degree": "深煎り",
+   "roomTemp": 15.5,
+   "weather": "雨 ☔",
+   "interval": 45,
+   "initial": {
+    "fire": "弱",
+    "damper": "3/4",
+    "rpm": "5"
+   },
+   "startedAt": 1763960000000,
+   "dropTime": 735,
+   "points": [
+    {
+     "t": 0,
+     "temp": 207.3,
+     "ror": null
+    },
+    {
+     "t": 40,
+     "temp": 100.4,
+     "ror": -160.4
+    },
+    {
+     "t": 85,
+     "temp": 95.9,
+     "ror": -44.6
+    },
+    {
+     "t": 130,
+     "temp": 109.8,
+     "ror": 12.4
+    },
+    {
+     "t": 190,
+     "temp": 130.1,
+     "ror": 20.3
+    },
+    {
+     "t": 240,
+     "temp": 144.9,
+     "ror": 18.2
+    },
+    {
+     "t": 300,
+     "temp": 160.2,
+     "ror": 15.3
+    },
+    {
+     "t": 345,
+     "temp": 169.7,
+     "ror": 13.3
+    },
+    {
+     "t": 400,
+     "temp": 179.1,
+     "ror": 10.5
+    },
+    {
+     "t": 460,
+     "temp": 189,
+     "ror": 9.9
+    },
+    {
+     "t": 520,
+     "temp": 197.2,
+     "ror": 8.2
+    },
+    {
+     "t": 575,
+     "temp": 203.2,
+     "ror": 6.7
+    },
+    {
+     "t": 630,
+     "temp": 210.3,
+     "ror": 7.6
+    },
+    {
+     "t": 690,
+     "temp": 212.8,
+     "ror": 2.5
+    },
+    {
+     "t": 735,
+     "temp": 215.9,
+     "ror": 3.7
+    }
+   ],
+   "events": [
+    {
+     "type": "tp",
+     "t": 70
+    },
+    {
+     "type": "dry",
+     "t": 330
+    },
+    {
+     "type": "fc1",
+     "t": 560
+    },
+    {
+     "type": "fc1e",
+     "t": 640
+    },
+    {
+     "type": "fc2",
+     "t": 705
+    },
+    {
+     "type": "drop",
+     "t": 735
+    }
+   ],
+   "changes": [
+    {
+     "t": 100,
+     "kind": "fire",
+     "value": "弱"
+    },
+    {
+     "t": 100,
+     "kind": "rpm",
+     "value": "6"
+    },
+    {
+     "t": 600,
+     "kind": "damper",
+     "value": "全開"
+    }
+   ],
+   "memo": "\"深め\" を狙って <script>alert(1)</script> / 改行\nテスト",
+   "tasting": {
+    "done": true,
+    "memo": "ビター。ミルク向き",
+    "pairing": "ミルクチョコ",
+    "at": 1764050000000,
+    "acidity": 1,
+    "bitterness": 5,
+    "sweetness": 2,
+    "aroma": 3,
+    "body": 5
+   },
+   "savedAt": 1763960825000
+  }
+ ],
+ "beans": [
+  {
+   "id": "bmq1a0001",
+   "name": "エチオピア イルガチェフェ G1",
+   "origin": "エチオピア",
+   "process": "ウォッシュト",
+   "shop": "〇〇珈琲豆店",
+   "memo": "浅めがおいしい",
+   "createdAt": 1763000000000
+  },
+  {
+   "id": "bmq1b0002",
+   "name": "ブラジル セラード",
+   "origin": "ブラジル",
+   "process": "ナチュラル",
+   "shop": "",
+   "memo": "",
+   "createdAt": 1763100000000
+  },
+  {
+   "id": "bmq1c0003",
+   "name": "コロンビア \"Huila\" <特別>",
+   "origin": "コロンビア",
+   "process": "ウォッシュト",
+   "shop": "&friends",
+   "memo": "改行\nあり",
+   "createdAt": 1763200000000
+  }
+ ],
+ "settings": {
+  "interval": 30,
+  "flick": 3,
+  "crash": 4,
+  "rorWindow": 60,
+  "fireLabels": [
+   "弱",
+   "中",
+   "強"
+  ],
+  "damperLabels": [
+   "閉",
+   "1/4",
+   "1/2",
+   "3/4",
+   "全開"
+  ],
+  "rpmOptions": [
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10"
+  ],
+  "sound": true
+ }
+}

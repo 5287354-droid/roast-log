@@ -1,0 +1,33 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci || npm install
+      - run: npm test
+      - run: node tools/check-sync.mjs
+      - name: sim サーバ適合試験
+        run: |
+          node tools/sim/server.mjs --speed 20 --port 8787 &
+          sleep 1
+          node tools/test/proto/conformance.mjs --url ws://localhost:8787/ws
+  # 予告: firmware/ ができたら次のジョブを追加する（F1 以降）
+  #   firmware:
+  #     runs-on: ubuntu-latest
+  #     steps:
+  #       - uses: actions/checkout@v4
+  #       - uses: actions/setup-python@v5
+  #         with: { python-version: '3.12' }
+  #       - run: pip install platformio
+  #       - run: pio run -d firmware            # 全 env
+  #       - run: pio test -d firmware -e native
+  # 予告: E2E（Playwright）は T2 で追加する

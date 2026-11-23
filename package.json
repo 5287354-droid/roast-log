@@ -1,0 +1,20 @@
+{
+  "name": "roast-log",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "焙煎記録ノート（K型熱電対 自動測定版）",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test \"tools/test/core/*.test.mjs\"",
+    "test:core": "node --test \"tools/test/core/*.test.mjs\"",
+    "test:proto": "node tools/test/proto/conformance.mjs --url ws://localhost:8787/ws",
+    "check-sync": "node tools/check-sync.mjs",
+    "fixtures": "node tools/fixtures/make-fixtures.mjs",
+    "sim": "node tools/sim/server.mjs"
+  },
+  "devDependencies": {
+    "ws": "^8.18.0"
+  }
+}
