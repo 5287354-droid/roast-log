@@ -119,7 +119,7 @@ function autoRoast({ id, profile, seed, afterFc1, channels, offsets, gap, extra 
     channels: channels.map(c => ({ ...c, offset: offsets[c.key] || 0 })),
     primary: 'c1',
     series: { dt: 1, start, scale: 10, data },
-    gaps: gap ? [gap] : [],
+    gaps: gap ? [{ from: gap[0], to: gap[1] }] : [],
     rorConfig: { method: 'lsq', window: profile === 'tenami' ? 60 : 30, smooth: 5 },
     points: toV1Points(tarr, bt, dropT),
   };

@@ -71,6 +71,7 @@ export function startServer(opts = {}) {
   let cfg = DEFAULT_CFG();
   let bootId = hex8();
   let seq = 0;                        // 最新サンプルの seq（最初のサンプルが 1）
+  let kBase = null;                   // 起動後の最初のサンプルのモデル秒（truth を seq の数え方に直す）
   let msBase = 100000 + Math.floor(Math.random() * 800000);
   const ring = new Array(RING).fill(null);
   let virtualSec = 0;                 // 起動からの仮想秒（reboot でも戻らない）
@@ -84,6 +85,7 @@ export function startServer(opts = {}) {
   const msOf = s => msBase + s * 1000;
 
   function sample(ctrl) {
+    if (kBase == null) kBase = model.k;
     const s = model.step(ctrl);
     virtualSec++;
     const vv = [null, null, null], ff = [0, 0, 0];
@@ -181,7 +183,7 @@ export function startServer(opts = {}) {
         for (const f of bfMsgs(m.from, m.to)) sendTo(c.ws, f);
         break;
       }
-      case 'ping': sendTo(c.ws, { type: 'pong', id: m.id, t: Date.now(), ms: msOf(seq) }); break;
+      case 'ping': sendTo(c.ws, { type: 'pong', id: m.id, t: Number.isFinite(m.t) ? m.t : 0, ms: msOf(seq) }); break;
       case 'setcfg': {
         const err = applyCfg(m);
         ack(!err, err);
@@ -214,7 +216,9 @@ export function startServer(opts = {}) {
     } else if (url.pathname === '/api/info') {
       json(res, 200, { proto: 1, fw: FW, model: 'RL-SIM', amp: 'sim', id: deviceId, bootId, mode: 'sta', ip: '127.0.0.1', host: req.headers.host || 'localhost', sim: true });
     } else if (url.pathname === '/api/sim/truth') {
-      json(res, 200, { ...model.truth(), seq, bootId, virtualSec, speed });
+      // 9.4: 時刻は seq と同じ数え方（最初のサンプルが 1）。モデル秒そのものは modelTruth
+      const mt = model.truth(), base = kBase == null ? model.k : kBase, sq = x => (x == null ? null : x - base + 1);
+      json(res, 200, { ...mt, now: sq(mt.now), chargeT: sq(mt.chargeT), tpT: sq(mt.tpT), fc1T: sq(mt.fc1T), fc1eT: sq(mt.fc1eT), modelTruth: mt, seq, bootId, virtualSec, speed });
     } else if (url.pathname === '/api/sim/reboot') {
       reboot(); json(res, 200, { ok: true, bootId });
     } else if (url.pathname === '/api/sim/disconnect') {
@@ -265,7 +269,7 @@ export function startServer(opts = {}) {
   let rebootDown = 0;
   function reboot() {
     bootId = hex8();
-    seq = 0; ring.fill(null);
+    seq = 0; ring.fill(null); kBase = null;
     msBase = 1000 + Math.floor(Math.random() * 5000);
     rebootDown = 3;   // 3 仮想秒は起動中（サンプルなし・接続拒否）
     refuseUntil = virtualSec + rebootDown;

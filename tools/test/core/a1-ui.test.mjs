@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -95,7 +96,13 @@ test('(b) v2 多チャンネル記録: 詳細画面で多系列・凡例・追�
   const tiles = await page.textContent('#dStats');
   for (const w of ['中点温度', '最大RoR（中点以降）', '1ハゼ時温度', '乾燥 / メイラード']) assert.ok(tiles.includes(w), w);
   // 投入温度=t0 の BT（data[30]）、排出温度=dropTime の BT
-  const bt = v2Backup().roasts[0].series.data.c1; assert.ok(tiles.includes(String(bt[30] / 10)), '投入温度'); assert.ok(tiles.includes(String(bt[749 - 0 > 749 ? 749 : 749] / 10)) || true);
+  const bt = v2Backup().roasts[0].series.data.c1; assert.ok(tiles.includes(String(bt[30] / 10)), '投入温度'); assert.ok(tiles.includes(String(bt[719 + 30] / 10)), '排出時温度（dropTime の BT）');
+  // 最大RoR（TP+30 秒以降）は RoastCore の計算と一致する値まで検査
+  const vmCtx = { window: {} }; vm.createContext(vmCtx); const src = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
+  vm.runInContext(src.slice(src.indexOf('// @core-begin'), src.indexOf('// @core-end')), vmCtx);
+  const expect = vmCtx.window.RoastCore.stats(v2Backup().roasts[0], { rorWindowAuto: 30, rorSmooth: 5, flick: 3, crash: 4, rorWindow: 60 }).maxRor;
+  assert.ok(expect != null && expect > 0, 'maxRor が計算できる');
+  assert.ok(tiles.includes(expect.toFixed(1) + '℃/分'), `最大RoR ${expect.toFixed(1)} が表示される: ${tiles}`);
   // 凡例: BT と ET はボタン、AMB は数値のみ
   assert.equal(await page.locator('#detailLegend button[data-lg]').count(), 3); // c1 c2 RoR
   const lg = await page.textContent('#detailLegend'); assert.match(lg, /外気温 \d+(\.\d)?℃/); assert.ok(!(await page.locator('#detailLegend [data-lg="c3"]').count()));

@@ -117,9 +117,9 @@ test('toV1Points: 自動測定は 0≤t≤dropTime の 5 秒ごと・小数1桁�
   const r = makeV2(['c1', 'c2'], { n: 300 });
   const m = Core.normalizeRecord(r);
   const pts = Core.toV1Points(m);
-  assert.equal(pts[0].t, 0); assert.equal(pts.at(-1).t, 265); // drop = 269
-  assert.ok(pts.every(p => p.t % 5 === 0 && p.t >= 0 && p.t <= 269));
-  assert.equal(pts.length, 54);
+  assert.equal(pts[0].t, 0); assert.equal(pts.at(-1).t, 269); // drop = 269（dropTime の点は必ず入る）
+  assert.ok(pts.slice(0, -1).every(p => p.t % 5 === 0 && p.t >= 0 && p.t <= 269));
+  assert.equal(pts.length, 55);
   pts.forEach(p => { assert.equal(p.temp, Math.round(p.temp * 10) / 10); assert.equal(p.temp, r.series.data.c1[p.t + 30] / 10); });
   // 往復: points だけの記録にしても 5 秒点の値が同じ
   const m2 = Core.normalizeRecord({ id: 'x', points: pts, events: [] });

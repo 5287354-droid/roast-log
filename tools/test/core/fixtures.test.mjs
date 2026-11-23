@@ -112,7 +112,7 @@ test('v2 fixtures: 1ch 手入力 / 2ch ドラム / 3ch 手網', () => {
   const m = load('v2-manual-1ch.json'), d = load('v2-esp32-drum-2ch.json'), t = load('v2-esp32-tenami-3ch.json');
   assert.equal(m.source, 'manual'); assert.equal(m.series, undefined); assert.equal(m.channels.length, 1); assert.equal(m.channels[0].role, 'et');
   assert.equal(d.source, 'esp32'); assert.equal(d.channels.length, 2);
-  assert.deepEqual(d.gaps, [[301, 318]]);
+  assert.deepEqual(d.gaps, [{ from: 301, to: 318 }]);
   const gi = 301 - d.series.start;
   assert.ok(d.series.data.c1[gi] === null && d.series.data.c1[gi - 1] !== null && d.series.data.c1[318 - d.series.start + 1] !== null);
   const tp = d.events.find(e => e.type === 'tp'); assert.ok(tp.auto && tp.t >= 60 && tp.t <= 120);

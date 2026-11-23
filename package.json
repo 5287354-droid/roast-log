@@ -5,7 +5,9 @@
   "type": "module",
   "description": "焙煎記録ノート（K型熱電対 自動測定版）",
   "license": "MIT",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "node --test \"tools/test/core/*.test.mjs\"",
     "test:core": "node --test \"tools/test/core/*.test.mjs\"",
@@ -15,6 +17,7 @@
     "sim": "node tools/sim/server.mjs"
   },
   "devDependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "playwright": "1.63.0"
   }
 }

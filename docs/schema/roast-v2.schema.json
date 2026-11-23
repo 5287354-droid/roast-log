@@ -56,6 +56,7 @@
       }
     },
     "primary": { "enum": ["c1", "c2", "c3"] },
+    "roasterType": { "enum": ["drum", "tenami"] },
     "series": {
       "type": "object",
       "required": ["dt", "start", "scale", "data"],
@@ -72,7 +73,13 @@
     },
     "gaps": {
       "type": "array",
-      "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+      "description": "9.4: [{from,to}]（両端を含む。その秒のサンプルが無い）。旧形式 [[a,b]] も読める",
+      "items": {
+        "oneOf": [
+          { "type": "object", "required": ["from", "to"], "properties": { "from": { "type": "number" }, "to": { "type": "number" } } },
+          { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+        ]
+      }
     },
     "rorConfig": {
       "type": "object",

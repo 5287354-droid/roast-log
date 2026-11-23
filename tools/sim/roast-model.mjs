@@ -18,7 +18,7 @@ function mulberry32(seed) {
 }
 
 // opts: { profile:'drum'|'tenami', seed, noise(σ℃), room, preheat, chargeAt(モデル秒|null),
-//         outlierP, tauP, h, fire, damper, faults:[{ch:0..2|'c1'..'c3', kind, from, to}] }
+//         outlierP, tauP, h, chargeDip, fire, damper, faults:[{ch:0..2|'c1'..'c3', kind, from, to}] }
 // controls: { fire:0..2, damper:0..4, charge:true(今すぐ投入) }
 // 戻り値 step(): { k, t, charged, v:[BT,ET,AMB]|null, f:[..], cj }（v は 0.1℃ に丸めた℃）
 //   t = 投入からの秒（投入前は null）
@@ -34,6 +34,7 @@ function createModel(opts) {
   const tauP = o.tauP == null ? (tenami ? 15 : 25) : o.tauP;   // プローブの時定数（秒）
   const exoUp = o.exoUp == null ? 0.08 : o.exoUp;              // SPEC: +0.08℃/秒
   const exoDown = o.exoDown == null ? -0.10 : o.exoDown;      // SPEC は -0.05。プローブの遅れ（τp）で薄まるので強めた
+  const chargeDip = o.chargeDip == null ? 15 : o.chargeDip;   // ドラム: 投入時に空気温度が下がる幅（℃）
   const shakeA = 8;                                 // 手網の振り（Ta への揺れ ℃）
   const shakeBt = 5;                                // 手網の振りが BT 表示に直接出る分（℃）
   const chargeAt = o.chargeAt === undefined ? 40 : o.chargeAt;
@@ -73,6 +74,7 @@ function createModel(opts) {
     if (c.damper != null) ctl.damper = c.damper;
     if (chargeK == null && (c.charge || (chargeAt != null && k >= chargeAt))) {
       chargeK = k; truth.chargeT = k; truth.chargeTemp = r1(Tp); tp0 = Tp;
+      if (!tenami) Ta -= chargeDip;                    // 豆が熱を奪うので、排気（空気）温度も投入で少し下がる
     }
     // 乱数は常に同じ数だけ引く（故障の有無でノイズ列が変わらない）
     var n = [gauss(), gauss(), gauss(), gauss()];
