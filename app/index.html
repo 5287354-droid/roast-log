@@ -445,7 +445,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; color:
       <h3>接続</h3>
       <div class="field"><span class="label">接続方式</span>
         <div class="seg" id="sConn"><button type="button" data-v="auto">自動</button><button type="button" data-v="esp32" id="sConnEsp">ESP32</button><button type="button" data-v="sim">シミュレーター</button><button type="button" data-v="manual">手入力</button></div></div>
-      <div class="note" id="sHttpsNote" hidden><span>claude.ai 版では ESP32 に接続できません（https のページから、家の中の機器には接続できないため）。ESP32 から配信されるアプリで使ってください。ここでは「手入力」と「シミュレーター」が使えます。</span></div>
+      <div class="note" id="sHttpsNote" hidden><span>claude.ai 版では ESP32 に接続できません。機器から配信されたページでのみ使えます（https のページから、家の中の機器には接続できないため）。ここでは「手入力」と「シミュレーター」が使えます。</span></div>
       <div class="field" id="sHostBox"><label class="label" for="sHost">ESP32 のアドレス（空なら、このアプリを配信している機器）</label><input id="sHost" placeholder="例：roast.local　または　192.168.4.1" autocapitalize="off" autocomplete="off"></div>
       <dl class="kv" id="sConnState"></dl>
       <div class="stack" id="sSimBox">
@@ -1020,6 +1020,8 @@ const ls = {
 };
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), ms))]);
 const clean = o => JSON.parse(JSON.stringify(o)); // drops undefined
+const byteLen = o => new TextEncoder().encode(JSON.stringify(o)).length;   // UTF-8 のバイト数（db の上限の数え方）
+const DB_LIMIT = 262144, FIT_AT = 200000, FIT_MAX = 240000;                // claude.ai db: 1 文書の上限／間引きを始める大きさ／保存を断る大きさ
 
 /* ---------- RoR + stats（計算は RoastCore。ここは設定を渡して結果をキャッシュするだけ）---------- */
 const evTime = RoastCore.evTime;
@@ -1058,16 +1060,18 @@ const Store = {
     const cache = ls.get(CACHE_KEY) || { roasts: [], beans: [], settings: null };
     if (this.mode !== 'cloud') return { ...cache, from: 'local' };
     try {
-      const [rs, bs, st] = await withTimeout(Promise.all([
+      const [rs, bs, st, nt] = await withTimeout(Promise.all([
         this.db.collection('roasts').get(),
         this.db.collection('beans').get(),
         this.db.doc('config/app').get(),
+        Promise.resolve().then(() => this.db.doc('config/notice').get()).catch(() => null),   // 新しい版のお知らせを出したか（読めなくても起動は続ける）
       ]), 12000);
       const data = {
         roasts: rs.docs.map(d => ({ ...d.data(), id: d.id })),
         beans: bs.docs.map(d => ({ ...d.data(), id: d.id })),
         settings: st.exists ? st.data() : null,
       };
+      this.noticeSeen = !!(nt && nt.exists);
       // keep local-only items that are still waiting to upload
       const pend = ls.get(PENDING_KEY) || [];
       pend.forEach(p => {
@@ -1082,7 +1086,7 @@ const Store = {
       return { ...cache, from: 'cache' };
     }
   },
-  lastErr: null,
+  lastErr: null, noticeSeen: false,
   writeCache() { return ls.set(CACHE_KEY, { roasts: S.roasts, beans: S.beans, settings: S.settings }); },
   path(col, id) { return col === 'config' ? 'config/app' : col + '/' + id; },
   // 戻り値: 保存できたら true。端末の容量不足は lastErr='quota'（赤いトーストを出す）、通信失敗は lastErr='net'
@@ -1090,7 +1094,9 @@ const Store = {
     this.lastErr = null;
     if (!this.writeCache()) { this.lastErr = 'quota'; quotaToast(); if (this.mode !== 'cloud') return false; }
     if (this.mode !== 'cloud') return true;
-    try { await withTimeout(this.db.doc(this.path(col, id)).set(clean(obj)), 10000); this.unqueue(col, id); return this.lastErr !== 'quota'; }
+    const body = clean(obj);
+    if (byteLen(body) > DB_LIMIT) { this.unqueue(col, id); this.lastErr = 'size'; return false; }   // 262,144 バイトを超える文書は db が受け付けない。待たせても通らないので、送信待ちにはしない
+    try { await withTimeout(this.db.doc(this.path(col, id)).set(body), 10000); this.unqueue(col, id); return this.lastErr !== 'quota'; }
     catch { this.queue(col, id, 'set'); if (!this.lastErr) this.lastErr = 'net'; return false; }
   },
   async remove(col, id) {
@@ -1103,12 +1109,14 @@ const Store = {
   unqueue(col, id) { const p = (ls.get(PENDING_KEY) || []).filter(x => !(x.col === col && x.id === id)); ls.set(PENDING_KEY, p); },
   async flush() {
     if (this.mode !== 'cloud') return;
-    const p = ls.get(PENDING_KEY) || [];
+    const p = ls.get(PENDING_KEY) || []; let sent = 0, failed = 0;
     for (const it of p) {
-      if (it.op === 'delete') { await this.remove(it.col, it.id); continue; }
+      if (it.op === 'delete') { if (await this.remove(it.col, it.id)) sent++; else failed++; continue; }
       const obj = it.col === 'roasts' ? S.roasts.find(x => x.id === it.id) : it.col === 'beans' ? S.beans.find(x => x.id === it.id) : S.settings;
-      if (obj) await this.put(it.col, it.id, obj); else this.unqueue(it.col, it.id);
+      if (obj) { if (await this.put(it.col, it.id, obj)) sent++; else failed++; } else this.unqueue(it.col, it.id);
     }
+    if (failed) toast(this.lastErr === 'size' ? '送信待ちの記録が大きすぎて claude.ai に送れませんでした。書き出してください' : `送信待ちの ${failed} 件を claude.ai に送れませんでした。あとでもう一度送ります`, { err: true, ms: 6000 });
+    else if (sent) toast(`送信待ちの ${sent} 件を claude.ai に送りました`);
   },
 };
 
@@ -1657,7 +1665,11 @@ function toast(msg, o) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), o.ms || 2600);
 }
-function savedToast(ok, msg) { if (ok) toast(msg); else if (Store.lastErr !== 'quota') toast('端末に保存しました。通信が戻ったら自動で送ります'); }
+function savedToast(ok, msg) {
+  if (ok) toast(msg);
+  else if (Store.lastErr === 'size') toast('この記録は大きすぎて claude.ai に保存できませんでした。「全データを書き出す」で書き出してください', { err: true, ms: 7000 });
+  else if (Store.lastErr !== 'quota') toast('claude.ai に送れませんでした。この端末には保存しました。通信が戻ったら自動で送ります', { err: true, ms: 5000 });
+}
 function confirmSheet(msg, okLabel, danger, cancelLabel, id) {
   return new Promise(res => {
     const o = document.createElement('div'); o.className = 'overlay'; if (id) o.id = id;
@@ -1877,6 +1889,7 @@ function renderHome() {
   // お知らせ: 容量（4MB 超）、IP アドレスでのアクセス（記録がアドレスごとに別になる）
   const notes = [];
   if (storageBytes() > 4000000) notes.push(`<div class="banner"><div><b>保存の容量がいっぱいに近づいています</b><div class="small">この端末の保存は約 5MB までです。「全データを書き出す」で書き出してください。</div></div><button class="btn primary" data-action="go" data-to="settings">書き出しへ</button></div>`);
+  if (S.migrateNotice) notes.push(`<div class="banner" id="migrateNote"><div><b>新しい版になりました</b><div class="small">念のため、全データを書き出しておくことをおすすめします。いまの記録はそのまま読めます。</div></div><div class="row"><button class="btn primary" data-action="migrate-export">書き出す</button><button class="btn ghost" data-action="migrate-dismiss">閉じる</button></div></div>`);
   if (/^\d+\.\d+\.\d+\.\d+/.test(location.hostname) && !ls.get('roastlog.ipNote')) notes.push(`<div class="banner"><div class="small">アドレスが違うと記録は別々に保存されます。普段は http://roast.local を使ってください。</div><button class="btn ghost" data-action="dismiss-ip">わかった</button></div>`);
   $('#noteBox').innerHTML = notes.join('');
   const q = ($('#search').value || '').trim().toLowerCase();
@@ -2450,6 +2463,7 @@ async function saveFinish() {
   const d = S.draft;
   d.roastedWeight = num($('#fRoasted').value); d.degree = $('#fDegree').value; d.memo = $('#fMemo').value.trim();
   const roast = fitCloud(toRecord(d));
+  if (!cloudFits(roast)) { tooBigToast(); return; }
   S.roasts = S.roasts.filter(x => x.id !== roast.id); S.roasts.push(roast);
   S.draft = null; saveDraft();
   const ok = await Store.put('roasts', roast.id, roast);
@@ -2483,10 +2497,24 @@ function toRecord(d) {
   }
   return rec;
 }
-// claude.ai の db に入れるとき、150KB を超える記録だけ series を 2 秒平均に間引く
+// claude.ai の db は 1 文書 262,144 バイトまで。UTF-8 のバイト数で数え、200,000 を超えたら series を 2 秒・4 秒…平均に間引く（元の series から作る）。
+// 保存・修正・評価・読み込みのどの経路でも通す。それでも 240,000 を超えるなら false（保存を断って書き出しを促す）
 function fitCloud(rec) {
-  if (Store.mode === 'cloud' && rec.series && JSON.stringify(rec).length > 150000) rec.series = RoastCore.decimate(rec.series, 2);
+  if (Store.mode !== 'cloud' || !rec || !rec.series) return rec;
+  if (byteLen(rec) <= FIT_AT) return rec;
+  const orig = rec.series;
+  for (let f = 2; f <= 64; f *= 2) { rec.series = RoastCore.decimate(orig, f); if (byteLen(rec) <= FIT_AT) break; }
   return rec;
+}
+function cloudFits(rec) { return Store.mode !== 'cloud' || byteLen(rec) <= FIT_MAX; }
+function tooBigToast() { toast('この記録は大きすぎて claude.ai に保存できません。「全データを書き出す」で書き出してください', { err: true, ms: 7000 }); }
+// v1 の記録は、評価・修正を保存するときに初めて v2 にする（見るだけでは書き換えない）。未知の項目は消さない
+function upgradeV2(r) {
+  if (r.schema === 2) return r;
+  r.schema = 2; if (!r.source) r.source = 'manual';
+  if (!Array.isArray(r.channels) || !r.channels.length) { r.channels = [{ key: 'c1', role: 'et', name: '排気温度', color: '#C2410C', offset: 0 }]; r.primary = 'c1'; }
+  if (!r.rorConfig) r.rorConfig = { method: 'interp', window: Number(settings().rorWindow) || 60 };
+  return r;
 }
 
 /* ---------- DETAIL ---------- */
@@ -2537,7 +2565,9 @@ async function saveTasting() {
   const r = curRoast(); if (!r) return;
   const t = { done: true, memo: $('#tMemo').value.trim(), pairing: $('#tPair').value.trim(), at: Date.now() };
   SCALES.forEach(([k]) => { t[k] = +$('#sc_' + k).value; });
-  r.tasting = t; r.savedAt = Date.now();
+  const prev = { tasting: r.tasting, savedAt: r.savedAt };
+  r.tasting = t; r.savedAt = Date.now(); upgradeV2(r); fitCloud(r);
+  if (!cloudFits(r)) { r.tasting = prev.tasting; r.savedAt = prev.savedAt; tooBigToast(); return; }
   const ok = await Store.put('roasts', r.id, r);
   savedToast(ok, '評価を保存しました');
 }
@@ -2571,7 +2601,8 @@ async function saveEdit() {
   r.events = evs.sort((a, b) => a.t - b.t);
   const drop = evTime(r, 'drop'); if (drop != null) r.dropTime = drop;
   if (!getModel(r).sparse || r.schema === 2) r.points = RoastCore.toV1Points(RoastCore.normalizeRecord(r)); // 互換用の points も作り直す
-  r.savedAt = Date.now();
+  r.savedAt = Date.now(); upgradeV2(r); fitCloud(r);
+  if (!cloudFits(r)) { tooBigToast(); return; }
   const ok = await Store.put('roasts', r.id, r);
   savedToast(ok, '修正を保存しました（RoR も再計算しました）');
   $('#dEdit').open = false; renderDetail();
@@ -2990,20 +3021,21 @@ async function offerFile(filename, text) {
   try {
     artifact = !!(window.claude && window.claude.use);
     const dl = artifact ? await window.claude.use('downloads') : null;
-    if (dl) { await dl.save({ filename, data: text }); return; }
+    if (dl) { await dl.save({ filename, data: text }); toast('ファイルを書き出しました'); return; }
   } catch (e) { if (e && e.code === 'declined') return; }
-  // claude.ai の外（ESP32 配信・ファイルを直接開いたとき）は Blob のダウンロードを試す
-  if (!artifact) {
-    try {
-      const url = URL.createObjectURL(new Blob([text], { type: /\.json$/.test(filename) ? 'application/json' : 'text/csv;charset=utf-8' }));
-      const a = document.createElement('a'); a.href = url; a.download = filename; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-      toast('ファイルを書き出しました'); return;
-    } catch {}
-  }
-  // fallback: show text to copy
+  // downloads が使えない（宣言なし・拒否・失敗）ときと、claude.ai の外では Blob のダウンロードを試す
+  let blobOk = false;
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type: /\.json$/.test(filename) ? 'application/json' : 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    blobOk = true;
+  } catch {}
+  // claude.ai の中では Blob が黙って捨てられることがあるので、必ずテキストの代替も出す（外では Blob が成功すれば出さない）
+  if (blobOk && !artifact) { toast('ファイルを書き出しました'); return; }
   if (S.view !== 'settings') show('settings');
   $('#exportText').value = text; $('#exportFallback').hidden = false; $('#exportText').scrollIntoView({ block: 'center' });
+  toast(artifact ? 'ファイルにできないときは、下の文章をコピーして保存してください' : 'ファイルにできませんでした。下の文章をコピーして保存してください', { ms: 5000 });
 }
 const stamp = () => { const d = new Date(); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; };
 const csvCell = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -3032,6 +3064,7 @@ function csvAll() {
   });
   return csv(rows);
 }
+const exportAll = () => offerFile(`焙煎記録バックアップ_${stamp()}.json`, JSON.stringify({ app: 'roastlog', version: 2, exportedAt: new Date().toISOString(), roasts: S.roasts, beans: S.beans, settings: S.settings }, null, 1));
 async function importJson(file) {
   try {
     const data = JSON.parse(await file.text());
@@ -3043,14 +3076,20 @@ async function importJson(file) {
       if (!v.ok) { bad.push(v.errors[0]); return; }
       try { RoastCore.normalizeRecord(r); } catch { bad.push('正規化できません'); return; }
       if (r.schema === 2 && r.series) r.points = RoastCore.toV1Points(RoastCore.normalizeRecord(r)); // v1 アプリ用の points は常に series から作り直す
+      fitCloud(r);
+      if (!cloudFits(r)) { bad.push('大きすぎて claude.ai に保存できません'); return; }
       good.push(r);
     });
     const ok = await confirmSheet(`焙煎 ${good.length} 件・豆 ${(data.beans || []).length} 件を読み込みます。同じ記録は上書きされます。${bad.length ? `形式が正しくない記録 ${bad.length} 件は読み込みません。` : ''}`, '読み込む');
     if (!ok) return;
-    for (const r of good) { S.roasts = S.roasts.filter(x => x.id !== r.id); S.roasts.push(r); await Store.put('roasts', r.id, r); }
+    let failed = 0;
+    for (const r of good) { S.roasts = S.roasts.filter(x => x.id !== r.id); S.roasts.push(r); if (!await Store.put('roasts', r.id, r)) failed++; }
     for (const b of data.beans || []) { if (!b.id) continue; S.beans = S.beans.filter(x => x.id !== b.id); S.beans.push(b); await Store.put('beans', b.id, b); }
     if (data.settings) { S.settings = mergeSettings(data.settings); await Store.put('config', 'app', S.settings); }
-    toast(bad.length ? `${good.length} 件を読み込みました（${bad.length} 件は形式が正しくないため除きました）` : '読み込みました');
+    if (failed) { savedToast(false); return; }
+    const tooBig = bad.filter(x => /大きすぎ/.test(x)).length;
+    if (tooBig) toast(`${tooBig} 件は大きすぎて claude.ai に保存できないため読み込みませんでした。${good.length} 件を読み込みました`, { err: true, ms: 7000 });
+    else toast(bad.length ? `${good.length} 件を読み込みました（${bad.length} 件は形式が正しくないため除きました）` : '読み込みました');
   } catch { toast('このファイルは読み込めませんでした。書き出したバックアップ（.json）を選んでください'); }
 }
 
@@ -3104,7 +3143,7 @@ document.addEventListener('click', async e => {
   else if (act === 'delete-roast') deleteRoast();
   else if (act === 'csv-one') { const r = curRoast(); if (r) offerFile(`焙煎_${(r.beanName || 'roast').replace(/[\\/:*?"<>|\s]/g, '_')}_${fmtDate(r.startedAt).split(' ')[0].replace(/\//g, '')}.csv`, csvOne(r)); }
   else if (act === 'csv-all') offerFile(`焙煎一覧_${stamp()}.csv`, csvAll());
-  else if (act === 'export-json') offerFile(`焙煎記録バックアップ_${stamp()}.json`, JSON.stringify({ app: 'roastlog', version: 2, exportedAt: new Date().toISOString(), roasts: S.roasts, beans: S.beans, settings: S.settings }, null, 1));
+  else if (act === 'export-json') exportAll();
   else if (act === 'copy-export') { const ta = $('#exportText'); try { await navigator.clipboard.writeText(ta.value); toast('コピーしました'); } catch { ta.select(); toast('選択しました。長押しでコピーしてください'); } }
   else if (act === 'save-bean') saveBean();
   else if (act === 'clear-bean') fillBeanForm(null);
@@ -3123,6 +3162,8 @@ document.addEventListener('click', async e => {
   else if (act === 'dg-enable') { const chs = readDiagEnable(+a.dataset.i); pushChannels(chs, '機器に保存しました', '設定を保存しました'); }
   else if (act === 'undo') { if (S.draft && !roGuard()) undo(); }
   else if (act === 'dismiss-lock') { lockDismissed = true; ls.set('roastlog.lockNote', 1); $('#lockNote').hidden = true; }
+  else if (act === 'migrate-export') { S.migrateNotice = false; renderHome(); exportAll(); }
+  else if (act === 'migrate-dismiss') { S.migrateNotice = false; renderHome(); }
   else if (act === 'dismiss-ip') { ls.set('roastlog.ipNote', 1); renderHome(); }
 });
 document.addEventListener('change', e => {
@@ -3164,6 +3205,11 @@ window.__roastlog = { S, Sources, onSample, updateGauges, drawLive, Dg, Cal, Cfg
   S.roasts = data.roasts || []; S.beans = data.beans || [];
   S.settings = mergeSettings(data.settings);
   S.loaded = true; S.loadFrom = data.from;
+  // 新しい版の初回だけ、書き出しをすすめる（db の config/notice と端末の印の両方で「出した」を覚える。記録には触らない）
+  if (Store.mode === 'cloud' && data.from === 'cloud' && !Store.noticeSeen && !ls.get('roastlog.v2notice') && (S.roasts.length || S.beans.length || data.settings)) {
+    S.migrateNotice = true; ls.set('roastlog.v2notice', 1);
+    Promise.resolve().then(() => Store.db.doc('config/notice').set({ v2: true, at: Date.now() })).catch(() => {});
+  }
   if (S.view === 'home') renderHome();
   if (data.from === 'cache') toast('通信できないため、前回の記録を表示しています');
   Store.flush();
