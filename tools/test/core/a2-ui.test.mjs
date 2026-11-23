@@ -69,7 +69,8 @@ async function fullRoast(type) {
   assert.equal(sim0.status, 'roasting');
   const chargeT = truth.chargeT;
   // 投入の検知時刻は真値 ±3 秒（モデル秒 = 仮想秒。startedAt はサンプルの epoch）
-  const det = await page.evaluate(() => { const d = window.__roastlog.S.draft, sa = d.startedAt; return { startedAt: sa, n: d.series.data[d.primary].length }; });
+  const det = await page.evaluate(() => { const d = window.__roastlog.S.draft, sa = d.startedAt; return { startedAt: sa, k: (sa - d.live.base) / 1000, n: d.series.data[d.primary].length }; });
+  assert.ok(Math.abs(det.k - chargeT) <= 3, `投入の検知は真値 ±3 秒（検知 ${det.k} / 真値 ${chargeT}）`);
   assert.ok(det.n >= 31, '投入前 30 秒ぶんが series に入る');
   // 自動 TP（ドラムのみ）
   if (type === 'drum') {
@@ -82,20 +83,21 @@ async function fullRoast(type) {
   }
   // 1 ハゼ（真値の時刻まで進めてボタン）
   const fc1 = await page.evaluate(() => { const t = window.__roastlog.Sources.active.truth(); return t.fc1T; });
-  assert.equal(fc1, null);
+  assert.equal(fc1, null, '投入直後は 1ハゼ前');
   await until(page, () => window.__roastlog.Sources.active.truth().fc1T != null, '1ハゼ', 800000, 1000);
+  assert.ok(await page.evaluate(() => { const t = window.__roastlog.Sources.active.truth(); return t.fc1T > t.chargeT; }), '1ハゼは投入のあと');
   await run(page, 2000);
   await page.click('[data-ev="fc1"]');
   await page.screenshot({ path: path.join(shots, `roasting-${type}.png`) });
   const gaugeText = await page.textContent('#gauges'); assert.match(gaugeText, /℃/);
-  assert.ok((await page.textContent('#stageBand')).includes('発達'), '段階帯');
+  assert.ok((await page.textContent('#stageBand')).includes('乾燥'), '段階帯');
   assert.ok((await page.textContent('#gChips')).includes('排気'), '2段目チャンネルチップ');
   assert.match(await page.textContent('#connRow'), /受信中/);
   // 1ハゼ終了後の急降下を待ってから排出
   await until(page, () => { const t = window.__roastlog.Sources.active.truth(); return t.fc1eT != null && t.now - t.fc1eT > 70; }, '1ハゼ終了後', 400000, 1000);
   await page.click('[data-ev="drop"]'); await page.click('.overlay [data-r="1"]');
   await page.waitForSelector('[data-view="finish"]:not([hidden])');
-  const tiles = await page.textContent('#fStats'); for (const w of ['中点温度', '最大RoR', '1ハゼ時温度', '乾燥 / メイラード']) assert.ok(tiles.includes(w), w);
+  const tiles = await page.textContent('#fStats'); for (const w of type === 'tenami' ? ['150℃ 到達まで', '最大RoR（投入2分以降）', '1ハゼ時温度', '乾燥 / メイラード'] : ['中点温度', '最大RoR', '1ハゼ時温度', '乾燥 / メイラード']) assert.ok(tiles.includes(w), w);
   await page.fill('#fRoasted', '170');
   await page.click('[data-action="save-finish"]');
   await page.waitForSelector('[data-view="detail"]:not([hidden])');

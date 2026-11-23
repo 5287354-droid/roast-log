@@ -19,7 +19,7 @@ const FW = '0.0.0-sim';
 
 export function parseArgs(argv) {
   const a = {
-    port: 8787, host: '0.0.0.0', speed: 1, profile: 'drum', seed: 1, chargeAt: 40, noise: 0.3,
+    port: 8787, host: '0.0.0.0', speed: 1, profile: 'drum', seed: 1, chargeAt: 40, noise: 0.3, outlierP: undefined,
     disconnect: [], fault: [], rebootAt: [], quiet: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -32,6 +32,7 @@ export function parseArgs(argv) {
     else if (k === '--seed') a.seed = +val();
     else if (k === '--charge-at') { const v = val(); a.chargeAt = v === 'none' ? null : +v; }
     else if (k === '--noise') a.noise = +val();
+    else if (k === '--outlier-p') a.outlierP = +val();   // 外れ値（+40℃）の確率。0 で無効（校正の試験用）
     else if (k === '--disconnect') { const [s, d] = val().split(':').map(Number); a.disconnect.push({ at: s, dur: d }); }
     else if (k === '--fault') {
       const m = /^c([1-3]):([a-z]+)@(\d+)-(\d+)$/.exec(val());
@@ -64,9 +65,11 @@ export function startServer(opts = {}) {
   const speed = o.speed > 0 ? o.speed : 1;
   const tickMs = 1000 / speed;
 
-  let model = createModel({ profile: o.profile, seed: o.seed, chargeAt: o.chargeAt, noise: o.noise, faults: [] });
+  let model = createModel({ profile: o.profile, seed: o.seed, chargeAt: o.chargeAt, noise: o.noise, outlierP: o.outlierP, faults: [] });
   // 故障は seq（起動からの仮想秒）で指定するので、モデル秒とは別に管理する
   const faults = o.fault.map(f => ({ ...f }));
+  const pinches = [];                 // 指でつまむ（試験・診断画面用）: 仮想秒 from〜to のあいだ、値を delta まで滑らかに上げる
+  let lastCfgMsg = null;
   const deviceId = 'a4cf' + (Math.floor(Math.random() * 256)).toString(16).padStart(2, '0');
   let cfg = DEFAULT_CFG();
   let bootId = hex8();
@@ -78,7 +81,7 @@ export function startServer(opts = {}) {
   let refuseUntil = -1;               // この仮想秒まで接続を拒否
   const pendingDisconnects = o.disconnect.map(d => ({ ...d, done: false }));
   const pendingReboots = o.rebootAt.map(at => ({ at, done: false }));
-  let identifiedAt = null;
+  let identifiedAt = null, identifyCount = 0;
   const clients = new Set();
 
   const bufFrom = () => (seq === 0 ? 1 : Math.max(1, seq - RING + 1));
@@ -96,6 +99,7 @@ export function startServer(opts = {}) {
         if (ft.ch === i && virtualSec >= ft.from && virtualSec <= ft.to) { v = null; f = { open: 1, gnd: 2, vcc: 3, ovuv: 4, range: 5, cj: 6, nodev: 7, stale: 8 }[ft.kind] || 1; }
       }
       if (!c.enabled) { vv[i] = null; ff[i] = 0; continue; }
+      if (v != null) for (const p of pinches) if (p.ch === i && virtualSec >= p.from && virtualSec <= p.to + 3) { const x = Math.min(1, (virtualSec - p.from + 1) / 4), y = virtualSec > p.to ? Math.max(0, 1 - (virtualSec - p.to) / 3) : 1; v += p.delta * x * y; }
       vv[i] = v == null ? null : Math.round((v + c.offset) * 10);
       ff[i] = f;
     }
@@ -185,12 +189,13 @@ export function startServer(opts = {}) {
       }
       case 'ping': sendTo(c.ws, { type: 'pong', id: m.id, t: Number.isFinite(m.t) ? m.t : 0, ms: msOf(seq) }); break;
       case 'setcfg': {
+        lastCfgMsg = m;
         const err = applyCfg(m);
         ack(!err, err);
         if (!err) broadcast(cfgMsg());
         break;
       }
-      case 'identify': identifiedAt = Date.now(); log('identify'); ack(true); break;
+      case 'identify': identifiedAt = Date.now(); identifyCount++; log('identify'); ack(true); break;
       default: ack(false, 'unknown_type');
     }
   }
@@ -232,6 +237,18 @@ export function startServer(opts = {}) {
       const sec = +url.searchParams.get('sec') || 10;
       faults.push({ ch: +ch.replace(/^c/i, '') - 1, kind, from: virtualSec + 1, to: virtualSec + sec });
       json(res, 200, { ok: true });
+    } else if (url.pathname === '/api/sim/rebatch') {
+      // 試験用: 豆を入れ替えて、もう一度投入する（焙煎の途中で温度が急に下がる状況を作る。排出の案内の試験）
+      model = createModel({ profile: o.profile, seed: o.seed + 1, chargeAt: null, noise: o.noise, outlierP: o.outlierP, faults: [] });
+      kBase = null; pendingCharge = true; json(res, 200, { ok: true });
+    } else if (url.pathname === '/api/sim/pinch') {
+      // /api/sim/pinch?ch=c2&delta=6&sec=15 : プローブを指でつまんだ（今から sec 仮想秒のあいだ delta ℃ 上がる）
+      const ch = +(url.searchParams.get('ch') || 'c1').replace(/^c/i, '') - 1, delta = +(url.searchParams.get('delta') || 6), sec = +(url.searchParams.get('sec')) || 15;
+      pinches.push({ ch, delta, from: virtualSec + 1, to: virtualSec + sec });
+      json(res, 200, { ok: true });
+    } else if (url.pathname === '/api/sim/state') {
+      // 試験用: 設定・identify・最後の setcfg を見る
+      json(res, 200, { cfg, identifiedAt, identifyCount, lastSetcfg: lastCfgMsg, seq, bootId, virtualSec, clients: clients.size });
     } else if (url.pathname === '/api/sim/control') {
       const fire = url.searchParams.get('fire'), damper = url.searchParams.get('damper');
       pendingCtrl = {};
@@ -322,7 +339,7 @@ if (isMain) {
   let args;
   try { args = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); process.exit(2); }
   if (args.help) {
-    console.log('使い方: node tools/sim/server.mjs [--port 8787] [--speed 1] [--profile drum|tenami] [--seed 1] [--charge-at 40|none]\n  [--noise 0.3] [--disconnect 300:20] [--fault c2:open@400-420] [--reboot-at 500] [--quiet]');
+    console.log('使い方: node tools/sim/server.mjs [--port 8787] [--speed 1] [--profile drum|tenami] [--seed 1] [--charge-at 40|none]\n  [--noise 0.3] [--outlier-p 0] [--disconnect 300:20] [--fault c2:open@400-420] [--reboot-at 500] [--quiet]');
     process.exit(0);
   }
   startServer(args).catch(e => { console.error(e.message); process.exit(1); });

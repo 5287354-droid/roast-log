@@ -192,4 +192,9 @@ test('autoPts（stats）: ライブと同じ RoR。flag は crash だけ。tenam
   // maxRor は TP+30 秒以降
   assert.ok(s.pts.filter(q => q.t >= s.tp + 30).some(q => q.ror === s.maxRor));
   assert.ok(cT > 0);
+  assert.ok(s.pts.every(q => q.flag === null || q.flag === 'crash' || q.flag === 'flick'), 'flag の値');
+  const rt = pipeline('tenami', 3, 40, 900), tv = rt.R.v.map(x => x == null ? null : Math.round(x * 10));
+  const tn = C.stats({ ...rec, roasterType: 'tenami', events: [{ type: 'fc1', t: 560 }, { type: 'drop', t: 800 }], series: { dt: 1, start: 0, scale: 10, data: { c1: tv } } }, { rorSmooth: 5, roasterType: 'tenami' });
+  assert.ok(tn.tp === null && !tn.tpAuto, `手網の記録に自動の中点が出ない: tp=${tn.tp}`);
+  assert.ok(tn.maxRor != null && tn.reach != null, '手網: 最大RoR（2分以降）と150℃到達');
 });

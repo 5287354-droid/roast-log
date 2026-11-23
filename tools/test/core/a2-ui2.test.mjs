@@ -28,7 +28,7 @@ async function open({ clock = false, init, settings } = {}) {
   await page.goto(APP); await page.waitForFunction(() => document.querySelector('#modeChip')?.textContent !== '読み込み中');
   return { ctx, page, errors };
 }
-const SIM = (type = 'drum', extra = {}) => ({ roasterType: type, conn: { type: 'sim', host: '' }, rorWindowAuto: type === 'tenami' ? 60 : 30, sim: { speed: 20, profile: type, seed: 1, noise: 0.3, chargeAfter: 30, ...extra } });
+const SIM = (type = 'drum', extra = {}) => ({ roasterType: type, conn: { type: 'sim', host: '' }, sim: { speed: 20, profile: type, seed: 1, noise: 0.3, chargeAfter: 30, ...extra } });
 const run = async (page, ms, step = 500) => { for (let t = 0; t < ms; t += step) await page.clock.runFor(Math.min(step, ms - t)); };
 async function startRoast(page) {
   await page.click('[data-action="new-roast"]'); await page.fill('#suBeanName', '試験豆'); await page.fill('#suGreen', '200');
@@ -40,7 +40,18 @@ test('自動検知の取り消し: トーストの「取り消す」で投入前
   await startRoast(page);
   for (let i = 0; i < 100 && !(await page.evaluate(() => !!window.__roastlog.S.draft.startedAt)); i++) await page.clock.runFor(500);
   assert.match(await page.textContent('.toast'), /投入を検知しました（\d+:\d\d 前）/);
+  // 取り消しは確認を出す。いったん「戻る」で何も消えないことを確かめ、やり直しも試す
+  assert.ok((await page.locator('.toast.top [data-toast-action]').boundingBox()).height >= 44, 'ボタンは44px以上');
   await page.click('.toast [data-toast-action]');
+  await page.click('.overlay [data-r="0"]');
+  assert.equal(await page.evaluate(() => window.__roastlog.S.draft.status), 'roasting', '確認で戻ると消えない');
+  await page.click('[data-action="undo"]'); await page.click('.overlay [data-r="0"]');
+  assert.equal(await page.evaluate(() => window.__roastlog.S.draft.status), 'roasting', '「1つ前の操作を取り消す」も確認が出る');
+  await page.click('[data-action="undo"]'); await page.click('.overlay [data-r="1"]');
+  await page.click('.toast [data-toast-action]'); // やり直す
+  assert.equal(await page.evaluate(() => window.__roastlog.S.draft.status), 'roasting', 'やり直すで戻る');
+  assert.ok(await page.evaluate(() => window.__roastlog.S.draft.series.data.c1.length) > 30, '記録も戻る');
+  await page.click('[data-action="undo"]'); await page.click('.overlay [data-r="1"]');
   const d = await page.evaluate(() => { const d = window.__roastlog.S.draft; return { status: d.status, sa: d.startedAt, ev: d.events.length, n: d.series.data.c1.length, off: d.autoOff }; });
   assert.deepEqual(d, { status: 'ready', sa: null, ev: 0, n: 0, off: true });
   await run(page, 15000); // もう一度は検知しない
@@ -49,7 +60,7 @@ test('自動検知の取り消し: トーストの「取り消す」で投入前
   // 手動で投入（Enter キー）→ 始まる。シミュレーターの豆も投入される
   await page.keyboard.press('Enter'); await run(page, 3000);
   const e = await page.evaluate(() => ({ s: window.__roastlog.S.draft.status, tr: window.__roastlog.Sources.active.truth().chargeT, n: window.__roastlog.S.draft.series.data.c1.length }));
-  assert.equal(e.s, 'roasting'); assert.ok(e.tr != null); assert.ok(e.n >= 31);
+  assert.equal(e.s, 'roasting'); assert.ok(e.tr >= 30, `手動の投入はモデル秒 ${e.tr}（自動投入なし）`); assert.ok(e.n >= 31);
   assert.deepEqual(errors, []); await ctx.close();
 });
 
