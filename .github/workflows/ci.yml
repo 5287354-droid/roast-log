@@ -13,6 +13,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci || npm install
+      - name: 画面テスト用のブラウザを入れる
+        run: npx playwright install --with-deps chromium
       - run: npm test
       - run: node tools/check-sync.mjs
       - name: sim サーバ適合試験

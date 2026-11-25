@@ -1,0 +1,65 @@
+name: pages
+# main に入ったら、ファームを作り直して「ブラウザから書き込むページ」と組み立てガイドを GitHub Pages に公開する。
+# 公開先: https://<ユーザー名>.github.io/roast-log/ （書き込みページは /flash/、ガイドは /guide.html）
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            firmware/.pio/libdeps
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - run: pip install platformio==6.2.0
+      - run: npm ci || npm install
+      - name: 書き込み用の bin を作る（NVS には書かない 5 分割）
+        run: |
+          bash firmware/scripts/make_flash_bins.sh
+          node firmware/tools/check-flash-page.mjs --bins
+      - name: 公開するファイルを集める
+        run: |
+          mkdir -p _site/flash
+          cp -r docs/flash/. _site/flash/
+          cp docs/GUIDE.html _site/guide.html
+          cat > _site/index.html <<'HTML'
+          <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>焙煎ロガー</title><meta http-equiv="refresh" content="0; url=flash/"></head>
+          <body style="font-family:sans-serif;padding:16px"><p><a href="flash/">ブラウザから書き込むページへ</a> ・ <a href="guide.html">組み立てガイド</a></p></body></html>
+          HTML
+          touch _site/.nojekyll
+          find _site -maxdepth 3 | sort
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
