@@ -1,39 +1,47 @@
-// 焙煎ロガー ケース【熱電対 1 本用】（秋月 C タイプ基板 + XIAO ESP32C3 + MAX31855 ×1）
+// 焙煎ロガー ケース【熱電対 1 本用】（実物の基板 70×50mm・24×18 穴 + XIAO ESP32C3 + MAX31855 ×1）
 // 3 本用（roastlogger_case.scad）はそのまま残してある。これは別ファイル・別パラメータ。
 // 印刷: Bambu Lab A1 / PETG / ノズル 0.4mm / サポートなし
 // 使い方: part を切り替えて書き出す（case/build_1ch.sh が全部やる）
 //   openscad -D 'part="body"' -o stl/1ch/body.stl roastlogger_case_1ch.scad
 //   part = "body" | "lid" | "button" | "assembly" | "assembly_open" | "assembly_cut"
+//   基板の種類: -D 'board="akizukiC"'（前に仮定した秋月 C タイプ 72×47 / 28×18 穴）で切り替える。既定は 7050（実物）
 // 座標: ケース内側の左前の角が (0,0)。X = 長辺（左端が USB-C 側）、Y = 短辺、Z = 上。
 // 基板の穴は (列, 段) = (c, r)。0 始まり。c は左(USB 側)から、r は手前から。
-// 穴の名前（A1 など）との対応: c = 列の英字（A=0）、r = 18 - 行番号。docs/CASE.md と board_1ch.json を参照。
+// 穴の名前（A1 など）との対応: c = 列の英字（A=0）、r = 18 - 行番号。docs/CASE.md と board_1ch_7050.json を参照。
 // 電池の場所は、小さくするため今回は省いた（3 本用にはある）。
 
 part = "assembly";
+board = "7050";     // "7050" = ユーザーが買った実物（70×50mm, 24×18 穴, 取付穴は各辺から約 2.5mm）| "akizukiC" = 前に仮定した 72×47mm, 28×18 穴
 
 // =====================================================================
 // 実測して書き換える値。数字は公表値または仮の値。全部 [要実測]。単位は mm。
 // 配置の列・段は board_1ch.json の case_params と同じ（case/board_1ch_check.py が突き合わせる）
 // =====================================================================
 
-// ---- ユニバーサル基板（秋月 C タイプ）----
-board_x   = 72;     // [要実測] 基板の長辺
-board_y   = 47;     // [要実測] 基板の短辺
+// ---- ユニバーサル基板（片面。ランドは裏だけ。部品は表から挿して裏ではんだ付け）----
+//   7050 のうち、全部 [要実測]: 外形、穴の数（数える）、最初の穴までの距離（格子が中央にあると仮定）、取付穴の位置と直径
+board_x   = board == "7050" ? 70 : 72;     // [要実測] 基板の長辺
+board_y   = board == "7050" ? 50 : 47;     // [要実測] 基板の短辺
 board_t   = 1.6;    // [要実測] 基板の厚さ
 pitch     = 2.54;   // 穴のピッチ
-grid_cols = 28;     // [要実測] 長辺方向の穴の数（数える）
+grid_cols = board == "7050" ? 24 : 28;     // [要実測] 長辺方向の穴の数（数える）
 grid_rows = 18;     // [要実測] 短辺方向の穴の数（数える）
-mount_c   = 1;      // [要実測] 隅の取付穴は、左端から何番目の穴か（0 始まり）
-mount_r   = 1;      // [要実測] 同じく手前の端から何番目か
-mount_d   = 3.2;    // [要実測] 取付穴の直径
+// 取付穴の中心の位置: 基板の左・手前の辺から (x, y)。右・奥は、反対側の辺から同じ距離
+//   7050: 各辺から約 2.5mm [要実測]。akizukiC: 格子の B2 の穴（仮定）
+mount_off = board == "7050" ? [2.5, 2.5]
+          : [(72 - 27*2.54)/2 + 2.54, (47 - 17*2.54)/2 + 2.54];
+mount_d   = board == "7050" ? 3.0 : 3.2;   // [要実測] 取付穴の直径（7050 は仮に 3.0）
+// 取付ねじ（セルフタップ）: 2 = M2、2.6 = M2.6。7050 の取付穴は直径が不明なので、測ってから決める
+mount_screw = 2.6;
+mount_pilot = mount_screw == 2 ? 1.7 : 2.2;   // 柱の下穴（PETG）
+mount_head  = mount_screw == 2 ? 4.0 : 5.0;   // なべ頭の直径
+mount_head_h = mount_screw == 2 ? 1.6 : 2.0;  // なべ頭の高さ
 
 // ---- XIAO ESP32C3 ----
 xiao_l    = 21.0;   // [要実測] 基板の長さ（USB-C 側の端から反対の端）
 xiao_w    = 17.8;   // [要実測] 基板の幅
 xiao_pcb_t= 1.0;    // [要実測] 基板の厚さ（部品を除く）
 xiao_row_gap = 6;   // 左右のピン列の間の穴の数（15.24mm = 6 ピッチ）
-xiao_c0   = 1;      // XIAO のピン1（D0 / 5V）を挿す列（0 始まり）
-xiao_r0   = 4;      // XIAO の手前側ピン列（D0..D6）の段
 usb_w     = 9.0;    // [要実測] USB-C コネクタの幅
 usb_h     = 3.3;    // [要実測] USB-C コネクタの高さ（基板の上面から）
 usb_out   = 0.3;    // [要実測] USB-C が基板の端から出っぱる量
@@ -50,26 +58,28 @@ amp_pin_off = 2.5;  // [要実測] ピン列の中心から、アンプ基板の
 term_h    = 10.0;   // [要実測] 基板の上面から、ネジ端子台の一番上まで
 term_wire_h = 5.0;  // [要実測] 基板の上面から、端子の線の差し込み口の中心まで
 term_w    = 10.0;   // [要実測] 端子台の幅（2 ピン分）
-amp_c     = 16;     // アンプのピン列の列（0 始まり）
-amp_r     = 6;      // アンプのピン 6 本の最初の段。ピンは段 r..r+5
-amp_flip  = 1;      // 0 = 手前から Vin..CLK（配置は board_1ch.json）、1 = 逆（board_1ch_amp_reversed.json）。ケースの形は同じ
+amp_flip  = 1;      // 1 = 手前から CLK, CS, DO, GND, 3Vo, Vin（ネジ端子が右。実物に合うと判定済み）。0 は使わない
 
 // ---- 抵抗 330Ω / LED / タクトスイッチ ----
-res_c     = 5;      // 抵抗の足の穴（左）。右の足は 列 + res_span
-res_r     = 3;
-res_span  = 4;      // 足の間の穴の数（4 = 10.16mm）
 res_d     = 2.4;    // [要実測] 抵抗の胴の太さ
 led_d     = 5.0;    // [要実測] LED の直径（3mm か 5mm）
 led_h     = 9.0;    // [要実測] 基板の上面から LED の頭まで（足を曲げず立てたとき）
-led_c     = 11;     // LED のアノード（長い足）の穴 (列, 段)
-led_r     = 5;
-led_dc    = 0;      // カソードの穴 = アノード + (led_dc, led_dr)
-led_dr    = 1;
 sw_size   = 6.0;    // [要実測] タクトスイッチの角の長さ（6mm 角）
 sw_h      = 5.0;    // [要実測] 基板の上面からボタンの頭まで
-sw_c      = 14;     // タクトスイッチの足の穴の左下。足は 3 列 × 2 段（sw_horiz=1）か 2 列 × 3 段
-sw_r      = 1;
-sw_horiz  = 1;
+
+// ---- 部品の穴の位置（列 c は左から、段 r は手前から。どちらも 0 始まり）----
+// 並び: [xiao_c0, xiao_r0, amp_c, amp_r, led_c, led_r, led_dc, led_dr, sw_c, sw_r, sw_horiz, res_c, res_r, res_span]
+//   xiao_c0/r0 = XIAO の手前側の列 D0..D6 の左端の穴。amp_c/r = アンプのピン 6 本の最初（手前）の穴、ピンは段 r..r+5
+//   led = アノード（長い足）の穴、カソードは + (led_dc, led_dr)。sw = タクトスイッチの足の穴の左下（3 列 × 2 段 / sw_horiz=0 は 2 列 × 3 段）
+//   res = 抵抗の左の足の穴、右の足は 列 + res_span（4 = 10.16mm）
+// 全探索の結果（case/board_1ch_7050.json / board_1ch_amp_reversed.json の case_params と同じ。board_1ch_check.py が突き合わせる）
+layout_7050     = [1, 5, 16, 9, 2, 2, -1, 0, 6, 0, 0, 2, 4, 3];
+layout_akizukiC = [1, 4, 16, 6, 11, 5, 0, 1, 14, 1, 1, 5, 3, 4];
+lay = board == "7050" ? layout_7050 : layout_akizukiC;
+xiao_c0 = lay[0];  xiao_r0 = lay[1];  amp_c = lay[2];  amp_r = lay[3];
+led_c = lay[4];  led_r = lay[5];  led_dc = lay[6];  led_dr = lay[7];
+sw_c = lay[8];  sw_r = lay[9];  sw_horiz = lay[10];
+res_c = lay[11];  res_r = lay[12];  res_span = lay[13];
 
 // ---- アンテナ（XIAO 付属のフィルムアンテナ）----
 ant_l     = 30.0;   // [要実測] アンテナの長さ（貼る部分。線は含まない）
@@ -92,13 +102,13 @@ extra_right = 3;    // 熱電対の線側に追加する余白
 post_h    = 5.0;    // 基板の下の空間（はんだの足 1.5 + 被覆線 + 余裕）。電池なし
 ledge_w   = 1.5;    // 基板のふちを受ける段の幅
 top_gap   = 2.0;    // いちばん高い部品とふたのすき間
-screw_pilot = 2.5;  // M3 セルフタップの下穴（PETG）
+screw_pilot = 2.5;  // ふた用 M3 セルフタップの下穴（PETG）。基板の取付ねじは上の mount_screw
 screw_clear = 3.4;  // ふたのビス穴
 screw_head  = 6.2;  // ビスの頭の直径
 boss_r    = 3.2;    // ふたビスの柱の半径
 lid_screw_x = [20, -20]; // ふたビスの位置（内側の左端から。負は右端から）
 ear_x     = [9, -9];     // 壁に留める耳の位置（同じ決め方）
-vent_x    = [38, 42, 46, 50, 62, 66]; // 通気スリットの位置（ふたビスの柱をさける）
+vent_x    = [38, 42, 46, 62, 66, 70]; // 通気スリットの位置（ふたビスの柱とアンテナのくぼみをさける）
 
 // =====================================================================
 // ここから下は計算。ふつうは触らない
@@ -137,7 +147,7 @@ rod_d     = 5.6;  rod_hole = rod_d + 0.6;  rod_tube_od = rod_hole + 3.6;
 flange_d  = 9.0;  flange_t = 1.5;  rod_gap = 0.8;
 tube_bot_btn = z_bt + sw_h + rod_gap + flange_t;
 tube_bot_led = z_bt + led_h + 1.0;
-mounts = [for (c = [mount_c, grid_cols-1-mount_c], r = [mount_r, grid_rows-1-mount_r]) gp(c, r)];
+mounts = [for (x = [mount_off[0], board_x - mount_off[0]], y = [mount_off[1], board_y - mount_off[1]]) [bx + x, by + y]];
 
 module rr(x, y, r) { // 角丸の長方形（2D、原点は左下）
     hull() for (i=[r, x-r], j=[r, y-r]) translate([i,j]) circle(r);
@@ -170,7 +180,7 @@ module body() {
             ledge();
         }
         // 柱の下穴（深さ 5mm。底は貫通しない）
-        for (m = mounts) translate([m[0], m[1], z0 + post_h - 5]) cylinder(d=screw_pilot, h=6);
+        for (m = mounts) translate([m[0], m[1], z0 + post_h - 5]) cylinder(d=mount_pilot, h=6);
         lid_screw_pts() translate([0, 0, rim - 12]) cylinder(d=screw_pilot, h=13);
         // 耳のビス穴（皿つき）
         for (xv = ear_x) for (y = [-wall-6.5, cav_y+wall+6.5]) translate([xs(xv), y, 0]) {
@@ -268,8 +278,8 @@ module dummy_parts(wire=true, ant=true) {
     color("tan") translate([ra[0], ra[1], z_bt + res_d/2]) rotate([0, 90, 0]) cylinder(d=res_d, h=res_span*pitch);
     color("red") translate([led_p[0], led_p[1], z_bt]) cylinder(d=led_d, h=led_h);
     color("black") translate([sw_p[0] - sw_size/2, sw_p[1] - sw_size/2, z_bt]) cube([sw_size, sw_size, sw_h]);
-    // 基板の取付ビスの頭（M3 なべ。頭の直径 5.5、高さ 2）
-    for (m = mounts) color("silver") translate([m[0], m[1], z_bt]) cylinder(d=5.5, h=2);
+    // 基板の取付ビスの頭（なべ頭）
+    for (m = mounts) color("silver") translate([m[0], m[1], z_bt]) cylinder(d=mount_head, h=mount_head_h);
     if (ant) color("white") translate([ant_c_x, cav_y - 0.4, z_bt + ant_z - ant_w/2]) cube([ant_l, 0.4, ant_w]);
 }
 

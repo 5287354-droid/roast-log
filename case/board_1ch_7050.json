@@ -1,0 +1,1262 @@
+{
+ "schema": "roastlog-board-1ch/1",
+ "title": "焙煎ロガー 熱電対1本用 基板（70×50mm・24×18 穴・片面）の配置と配線",
+ "generated_by": "case/board_1ch_make.py（全探索は case/board_1ch_search.py）",
+ "amp_pin_order_assumption": "アンプのネジ端子を右に向けたとき、手前から奥へ CLK → CS → DO → GND → 3Vo → Vin。実物で確かめること。逆なら board_1ch_amp_reversed.json（アンプの向きを変えた配置）を使う",
+ "amp_reversed_variant": true,
+ "board": {
+  "type": "ユーザーが買った片面ユニバーサル基板（70×50mm、穴 24×18、2.54mm ピッチ。ランドは裏だけ）",
+  "size_mm": [
+   70.0,
+   50.0
+  ],
+  "cols": 24,
+  "rows": 18,
+  "pitch_mm": 2.54,
+  "measure_required": true,
+  "first_hole_mm": {
+   "x": 5.79,
+   "y_from_top": 3.41,
+   "note": "穴の格子が基板の中央にあると仮定した値（要実測）"
+  },
+  "key": "7050",
+  "land_side": "back_only",
+  "mount_holes": [
+   {
+    "x_mm": 2.5,
+    "y_from_top_mm": 47.5,
+    "d_mm": 3.0,
+    "edge_offset_mm": [
+     2.5,
+     2.5
+    ]
+   },
+   {
+    "x_mm": 67.5,
+    "y_from_top_mm": 47.5,
+    "d_mm": 3.0,
+    "edge_offset_mm": [
+     2.5,
+     2.5
+    ]
+   },
+   {
+    "x_mm": 2.5,
+    "y_from_top_mm": 2.5,
+    "d_mm": 3.0,
+    "edge_offset_mm": [
+     2.5,
+     2.5
+    ]
+   },
+   {
+    "x_mm": 67.5,
+    "y_from_top_mm": 2.5,
+    "d_mm": 3.0,
+    "edge_offset_mm": [
+     2.5,
+     2.5
+    ]
+   }
+  ],
+  "mount_hole_note": "取付穴は各辺から約 2.5mm（要実測）。直径は仮に 3.0mm（要実測）。取付穴の中心から 3.7mm 以内の穴は使わない（直径 7mm の柱が基板の裏に当たる）",
+  "blocked_holes": [
+   "A18",
+   "A1",
+   "X18",
+   "X1"
+  ]
+ },
+ "coordinates": {
+  "view": "表（部品を差す面）を上から見た図。USB-C が左、基板の左上の穴が A1",
+  "naming": "穴の名前 = 列の英字 + 行の番号。列は左から A, B, …, X（24 列）。行は上（奥）から 1, 2, …, 18",
+  "front_row_note": "case/roastlogger_case_1ch.scad の r（手前から 0 始まり）= 18 - 行番号。c（左から 0 始まり）= 列の英字の番号（A=0）",
+  "mirror_rule": "裏（はんだ面）から見るときは、基板を本のページのように縦の軸でひっくり返す。左右が反転する: 表の列 i（A=0）は、裏から見ると左から数えて (23 - i) 番目。行は上下とも変わらない。例: 表の A1（左上）は、裏では右上。表の X18（右下）は、裏では左下。mm で言えば、裏から見た x = 基板の幅 70 - 表の x。JSON の座標はすべて「表から見た座標」",
+  "back_view_x_formula": "x_back_mm = 70 - x_mm; col_back_index = 23 - col_index"
+ },
+ "parts": [
+  {
+   "id": "XIAO",
+   "kind": "xiao",
+   "label": "Seeed XIAO ESP32C3（ピンヘッダ付き、ピン下向き）",
+   "socket": "丸ピンソケット 1×7 ×2（メス。基板にはんだ付けし、XIAO を上から差す）",
+   "orientation": "USB-C が左（基板の左の端の側）、部品面が上。奥の列が左から 5V, GND, 3V3, D10, D9, D8, D7、手前の列が左から D0〜D6",
+   "pins": [
+    {
+     "pin": "D0",
+     "hole": "B13",
+     "net": null,
+     "solder_point": "P01",
+     "connected": false
+    },
+    {
+     "pin": "D1",
+     "hole": "C13",
+     "net": "CS",
+     "solder_point": "P02",
+     "connected": true
+    },
+    {
+     "pin": "D2",
+     "hole": "D13",
+     "net": null,
+     "solder_point": "P03",
+     "connected": false
+    },
+    {
+     "pin": "D3",
+     "hole": "E13",
+     "net": null,
+     "solder_point": "P04",
+     "connected": false
+    },
+    {
+     "pin": "D4",
+     "hole": "F13",
+     "net": "LEDIN",
+     "solder_point": "P05",
+     "connected": true
+    },
+    {
+     "pin": "D5",
+     "hole": "G13",
+     "net": "BTN",
+     "solder_point": "P06",
+     "connected": true
+    },
+    {
+     "pin": "D6",
+     "hole": "H13",
+     "net": null,
+     "solder_point": "P07",
+     "connected": false
+    },
+    {
+     "pin": "5V",
+     "hole": "B7",
+     "net": null,
+     "solder_point": "P08",
+     "connected": false
+    },
+    {
+     "pin": "GND",
+     "hole": "C7",
+     "net": "GND",
+     "solder_point": "P09",
+     "connected": true
+    },
+    {
+     "pin": "3V3",
+     "hole": "D7",
+     "net": "3V3",
+     "solder_point": "P10",
+     "connected": true
+    },
+    {
+     "pin": "D10",
+     "hole": "E7",
+     "net": null,
+     "solder_point": "P11",
+     "connected": false
+    },
+    {
+     "pin": "D9",
+     "hole": "F7",
+     "net": null,
+     "solder_point": "P12",
+     "connected": false
+    },
+    {
+     "pin": "D8",
+     "hole": "G7",
+     "net": "SCK",
+     "solder_point": "P13",
+     "connected": true
+    },
+    {
+     "pin": "D7",
+     "hole": "H7",
+     "net": "MISO",
+     "solder_point": "P14",
+     "connected": true
+    }
+   ],
+   "outline_mm": {
+    "x0": 5.45,
+    "x1": 26.45,
+    "y0_from_top": 17.37,
+    "y1_from_top": 35.17
+   },
+   "usb_side": "left"
+  },
+  {
+   "id": "AMP1",
+   "kind": "amp",
+   "label": "Adafruit MAX31855 #269（ピンヘッダがはんだ付け済み、ピン下向き）",
+   "socket": "丸ピンソケット 1×6（メス）",
+   "orientation": "ネジ端子が右（基板の右の端の側）、手前から奥へ CLK, CS, DO, GND, 3Vo, Vin。部品面を上、ネジ端子を左・ピンを右で見ると、奥から手前へ CLK, CS, DO, GND, 3Vo, Vin（実物で判定済み）",
+   "pins": [
+    {
+     "pin": "CLK",
+     "hole": "Q9",
+     "net": "SCK",
+     "solder_point": "P15",
+     "connected": true
+    },
+    {
+     "pin": "CS",
+     "hole": "Q8",
+     "net": "CS",
+     "solder_point": "P16",
+     "connected": true
+    },
+    {
+     "pin": "DO",
+     "hole": "Q7",
+     "net": "MISO",
+     "solder_point": "P17",
+     "connected": true
+    },
+    {
+     "pin": "GND",
+     "hole": "Q6",
+     "net": "GND",
+     "solder_point": "P18",
+     "connected": true
+    },
+    {
+     "pin": "3Vo",
+     "hole": "Q5",
+     "net": null,
+     "solder_point": "P19",
+     "connected": false
+    },
+    {
+     "pin": "Vin",
+     "hole": "Q4",
+     "net": "3V3",
+     "solder_point": "P20",
+     "connected": true
+    }
+   ],
+   "outline_mm": {
+    "x0": 43.93,
+    "x1": 68.93,
+    "y0_from_top": 7.38,
+    "y1_from_top": 27.38
+   },
+   "terminal_side": "right",
+   "pin_order_front_to_back": [
+    "CLK",
+    "CS",
+    "DO",
+    "GND",
+    "3Vo",
+    "Vin"
+   ]
+  },
+  {
+   "id": "R1",
+   "kind": "res",
+   "label": "抵抗 330Ω（1/4W）",
+   "socket": "なし（足を直接はんだ付け）",
+   "orientation": "寝かせて差す（足の間 3 穴）",
+   "pins": [
+    {
+     "pin": "a",
+     "hole": "F14",
+     "net": "LEDIN",
+     "solder_point": "P21",
+     "connected": true
+    },
+    {
+     "pin": "b",
+     "hole": "C14",
+     "net": "LEDA",
+     "solder_point": "P22",
+     "connected": true
+    }
+   ]
+  },
+  {
+   "id": "LED1",
+   "kind": "led",
+   "label": "LED（3mm か 5mm）",
+   "socket": "なし（足を直接はんだ付け）",
+   "orientation": "長い足（アノード）= anode の穴、短い足 = cathode の穴",
+   "pins": [
+    {
+     "pin": "anode",
+     "hole": "C16",
+     "net": "LEDA",
+     "solder_point": "P23",
+     "connected": true
+    },
+    {
+     "pin": "cathode",
+     "hole": "B16",
+     "net": "GND",
+     "solder_point": "P24",
+     "connected": true
+    }
+   ],
+   "centre_mm": {
+    "x": 9.6,
+    "y_from_top": 41.51
+   }
+  },
+  {
+   "id": "SW1",
+   "kind": "sw",
+   "label": "タクトスイッチ 6mm 角（4 本足）",
+   "socket": "なし（足を直接はんだ付け）",
+   "orientation": "同じ側の 2 本の足は、常につながっている。押すと、向かい側とつながる。テスターで確かめてから、同じ側の 2 本を同じ組の穴（a1,a2 / b1,b2）に差す",
+   "pins": [
+    {
+     "pin": "a1",
+     "hole": "G15",
+     "net": "BTN",
+     "solder_point": "P25",
+     "connected": true
+    },
+    {
+     "pin": "a2",
+     "hole": "I15",
+     "net": "BTN",
+     "solder_point": "P26",
+     "connected": true
+    },
+    {
+     "pin": "b1",
+     "hole": "G18",
+     "net": "GND",
+     "solder_point": "P27",
+     "connected": true
+    },
+    {
+     "pin": "b2",
+     "hole": "I18",
+     "net": "GND",
+     "solder_point": "P28",
+     "connected": true
+    }
+   ],
+   "centre_mm": {
+    "x": 23.57,
+    "y_from_top": 42.78
+   },
+   "long_side": "vertical",
+   "hole_spacing": "3 穴 × 2 穴（足の間 7.62mm × 5.08mm。足を少し広げて差す）"
+  }
+ ],
+ "nets": {
+  "CS": [
+   "XIAO.D1",
+   "AMP1.CS"
+  ],
+  "LEDIN": [
+   "XIAO.D4",
+   "R1.a"
+  ],
+  "BTN": [
+   "XIAO.D5",
+   "SW1.a1",
+   "SW1.a2"
+  ],
+  "GND": [
+   "XIAO.GND",
+   "AMP1.GND",
+   "LED1.cathode",
+   "SW1.b1",
+   "SW1.b2"
+  ],
+  "3V3": [
+   "XIAO.3V3",
+   "AMP1.Vin"
+  ],
+  "SCK": [
+   "XIAO.D8",
+   "AMP1.CLK"
+  ],
+  "MISO": [
+   "XIAO.D7",
+   "AMP1.DO"
+  ],
+  "LEDA": [
+   "R1.b",
+   "LED1.anode"
+  ]
+ },
+ "unused_pins_do_not_connect": [
+  "XIAO.D0",
+  "XIAO.D2",
+  "XIAO.D3",
+  "XIAO.D6",
+  "XIAO.5V",
+  "XIAO.D10",
+  "XIAO.D9",
+  "AMP1.3Vo"
+ ],
+ "wires": [
+  {
+   "id": "W01",
+   "net": "CS",
+   "purpose": "チップ選択 チャンネル1（GPIO3 = D1）",
+   "kind": "insulated",
+   "wire": "被覆線（AWG26〜30）。裏で、穴と穴のあいだを直線でわたす（部品の足や他の線にふれない）",
+   "color": "青",
+   "from_hole": "C13",
+   "to_hole": "Q8",
+   "touches_holes": [
+    "C13",
+    "Q8"
+   ],
+   "solder_holes": [
+    "C13",
+    "Q8"
+   ],
+   "length_mm": 37.8,
+   "cut_length_mm": 48.0,
+   "side": "back",
+   "crosses": [
+    "W05"
+   ],
+   "passes_near_holes": [
+    "D13"
+   ]
+  },
+  {
+   "id": "W02",
+   "net": "LEDIN",
+   "purpose": "D4（GPIO6）から抵抗へ",
+   "kind": "bare",
+   "wire": "スズメッキ線（裸線）0.5mm、裏の穴の上をまっすぐ張る",
+   "color": "銀（スズメッキ）",
+   "from_hole": "F13",
+   "to_hole": "F14",
+   "touches_holes": [
+    "F13",
+    "F14"
+   ],
+   "solder_holes": [
+    "F13",
+    "F14"
+   ],
+   "length_mm": 2.5,
+   "cut_length_mm": 9.0,
+   "side": "back",
+   "crosses": [],
+   "passes_near_holes": []
+  },
+  {
+   "id": "W03",
+   "net": "BTN",
+   "purpose": "D5（GPIO7）からスイッチへ",
+   "kind": "bare",
+   "wire": "スズメッキ線（裸線）0.5mm、裏の穴の上をまっすぐ張る",
+   "color": "銀（スズメッキ）",
+   "from_hole": "G13",
+   "to_hole": "G15",
+   "touches_holes": [
+    "G13",
+    "G14",
+    "G15"
+   ],
+   "solder_holes": [
+    "G13",
+    "G15"
+   ],
+   "length_mm": 5.1,
+   "cut_length_mm": 11.0,
+   "side": "back",
+   "crosses": [],
+   "passes_near_holes": []
+  },
+  {
+   "id": "W04",
+   "net": "3V3",
+   "purpose": "電源 3.3V",
+   "kind": "insulated",
+   "wire": "被覆線（AWG26〜30）。裏で、穴と穴のあいだを直線でわたす（部品の足や他の線にふれない）",
+   "color": "赤",
+   "from_hole": "D7",
+   "to_hole": "Q4",
+   "touches_holes": [
+    "D7",
+    "Q4"
+   ],
+   "solder_holes": [
+    "D7",
+    "Q4"
+   ],
+   "length_mm": 33.9,
+   "cut_length_mm": 44.0,
+   "side": "back",
+   "crosses": [
+    "W08"
+   ],
+   "passes_near_holes": [
+    "E7",
+    "F7"
+   ]
+  },
+  {
+   "id": "W05",
+   "net": "SCK",
+   "purpose": "クロック（GPIO8）",
+   "kind": "insulated",
+   "wire": "被覆線（AWG26〜30）。裏で、穴と穴のあいだを直線でわたす（部品の足や他の線にふれない）",
+   "color": "黄",
+   "from_hole": "G7",
+   "to_hole": "Q9",
+   "touches_holes": [
+    "G7",
+    "Q9"
+   ],
+   "solder_holes": [
+    "G7",
+    "Q9"
+   ],
+   "length_mm": 25.9,
+   "cut_length_mm": 36.0,
+   "side": "back",
+   "crosses": [
+    "W01"
+   ],
+   "passes_near_holes": [
+    "H7"
+   ]
+  },
+  {
+   "id": "W06",
+   "net": "LEDA",
+   "purpose": "抵抗から LED の長い足へ",
+   "kind": "bare",
+   "wire": "スズメッキ線（裸線）0.5mm、裏の穴の上をまっすぐ張る",
+   "color": "銀（スズメッキ）",
+   "from_hole": "C14",
+   "to_hole": "C16",
+   "touches_holes": [
+    "C14",
+    "C15",
+    "C16"
+   ],
+   "solder_holes": [
+    "C14",
+    "C16"
+   ],
+   "length_mm": 5.1,
+   "cut_length_mm": 11.0,
+   "side": "back",
+   "crosses": [],
+   "passes_near_holes": []
+  },
+  {
+   "id": "W07",
+   "net": "MISO",
+   "purpose": "データ（GPIO20。D9 ではない）",
+   "kind": "bare",
+   "wire": "スズメッキ線（裸線）0.5mm、裏の穴の上をまっすぐ張る",
+   "color": "銀（スズメッキ）",
+   "from_hole": "H7",
+   "to_hole": "Q7",
+   "touches_holes": [
+    "H7",
+    "I7",
+    "J7",
+    "K7",
+    "L7",
+    "M7",
+    "N7",
+    "O7",
+    "P7",
+    "Q7"
+   ],
+   "solder_holes": [
+    "H7",
+    "Q7"
+   ],
+   "length_mm": 22.9,
+   "cut_length_mm": 29.0,
+   "side": "back",
+   "crosses": [],
+   "passes_near_holes": []
+  },
+  {
+   "id": "W08",
+   "net": "GND",
+   "purpose": "0V",
+   "kind": "insulated",
+   "wire": "被覆線（AWG26〜30）。裏で、穴と穴のあいだを直線でわたす（部品の足や他の線にふれない）",
+   "color": "黒",
+   "from_hole": "C7",
+   "to_hole": "Q6",
+   "touches_holes": [
+    "C7",
+    "Q6"
+   ],
+   "solder_holes": [
+    "C7",
+    "Q6"
+   ],
+   "length_mm": 35.7,
+   "cut_length_mm": 46.0,
+   "side": "back",
+   "crosses": [
+    "W04",
+    "W09"
+   ],
+   "passes_near_holes": [
+    "D7",
+    "E7",
+    "F7",
+    "G7",
+    "H7"
+   ]
+  },
+  {
+   "id": "W09",
+   "net": "GND",
+   "purpose": "0V",
+   "kind": "insulated",
+   "wire": "被覆線（AWG26〜30）。裏で、穴と穴のあいだを直線でわたす（部品の足や他の線にふれない）",
+   "color": "黒",
+   "from_hole": "C7",
+   "to_hole": "B16",
+   "touches_holes": [
+    "C7",
+    "B16"
+   ],
+   "solder_holes": [
+    "C7",
+    "B16"
+   ],
+   "length_mm": 23.0,
+   "cut_length_mm": 33.0,
+   "side": "back",
+   "crosses": [
+    "W08",
+    "W10"
+   ],
+   "passes_near_holes": [
+    "B13"
+   ]
+  },
+  {
+   "id": "W10",
+   "net": "GND",
+   "purpose": "0V",
+   "kind": "insulated",
+   "wire": "被覆線（AWG26〜30）。裏で、穴と穴のあいだを直線でわたす（部品の足や他の線にふれない）",
+   "color": "黒",
+   "from_hole": "B16",
+   "to_hole": "G18",
+   "touches_holes": [
+    "B16",
+    "G18"
+   ],
+   "solder_holes": [
+    "B16",
+    "G18"
+   ],
+   "length_mm": 13.7,
+   "cut_length_mm": 24.0,
+   "side": "back",
+   "crosses": [
+    "W09"
+   ],
+   "passes_near_holes": [
+    "C16"
+   ]
+  }
+ ],
+ "solder_points": [
+  {
+   "id": "P01",
+   "type": "part_lead",
+   "hole": "B13",
+   "part": "XIAO",
+   "pin": "D0",
+   "net": null,
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P02",
+   "type": "part_lead",
+   "hole": "C13",
+   "part": "XIAO",
+   "pin": "D1",
+   "net": "CS",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P03",
+   "type": "part_lead",
+   "hole": "D13",
+   "part": "XIAO",
+   "pin": "D2",
+   "net": null,
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P04",
+   "type": "part_lead",
+   "hole": "E13",
+   "part": "XIAO",
+   "pin": "D3",
+   "net": null,
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P05",
+   "type": "part_lead",
+   "hole": "F13",
+   "part": "XIAO",
+   "pin": "D4",
+   "net": "LEDIN",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P06",
+   "type": "part_lead",
+   "hole": "G13",
+   "part": "XIAO",
+   "pin": "D5",
+   "net": "BTN",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P07",
+   "type": "part_lead",
+   "hole": "H13",
+   "part": "XIAO",
+   "pin": "D6",
+   "net": null,
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P08",
+   "type": "part_lead",
+   "hole": "B7",
+   "part": "XIAO",
+   "pin": "5V",
+   "net": null,
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P09",
+   "type": "part_lead",
+   "hole": "C7",
+   "part": "XIAO",
+   "pin": "GND",
+   "net": "GND",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P10",
+   "type": "part_lead",
+   "hole": "D7",
+   "part": "XIAO",
+   "pin": "3V3",
+   "net": "3V3",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P11",
+   "type": "part_lead",
+   "hole": "E7",
+   "part": "XIAO",
+   "pin": "D10",
+   "net": null,
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P12",
+   "type": "part_lead",
+   "hole": "F7",
+   "part": "XIAO",
+   "pin": "D9",
+   "net": null,
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P13",
+   "type": "part_lead",
+   "hole": "G7",
+   "part": "XIAO",
+   "pin": "D8",
+   "net": "SCK",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P14",
+   "type": "part_lead",
+   "hole": "H7",
+   "part": "XIAO",
+   "pin": "D7",
+   "net": "MISO",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P15",
+   "type": "part_lead",
+   "hole": "Q9",
+   "part": "AMP1",
+   "pin": "CLK",
+   "net": "SCK",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P16",
+   "type": "part_lead",
+   "hole": "Q8",
+   "part": "AMP1",
+   "pin": "CS",
+   "net": "CS",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P17",
+   "type": "part_lead",
+   "hole": "Q7",
+   "part": "AMP1",
+   "pin": "DO",
+   "net": "MISO",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P18",
+   "type": "part_lead",
+   "hole": "Q6",
+   "part": "AMP1",
+   "pin": "GND",
+   "net": "GND",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P19",
+   "type": "part_lead",
+   "hole": "Q5",
+   "part": "AMP1",
+   "pin": "3Vo",
+   "net": null,
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P20",
+   "type": "part_lead",
+   "hole": "Q4",
+   "part": "AMP1",
+   "pin": "Vin",
+   "net": "3V3",
+   "note": "ソケットのピン"
+  },
+  {
+   "id": "P21",
+   "type": "part_lead",
+   "hole": "F14",
+   "part": "R1",
+   "pin": "a",
+   "net": "LEDIN",
+   "note": "部品の足（基板の裏で切る。1.5mm 以下）"
+  },
+  {
+   "id": "P22",
+   "type": "part_lead",
+   "hole": "C14",
+   "part": "R1",
+   "pin": "b",
+   "net": "LEDA",
+   "note": "部品の足（基板の裏で切る。1.5mm 以下）"
+  },
+  {
+   "id": "P23",
+   "type": "part_lead",
+   "hole": "C16",
+   "part": "LED1",
+   "pin": "anode",
+   "net": "LEDA",
+   "note": "部品の足（基板の裏で切る。1.5mm 以下）"
+  },
+  {
+   "id": "P24",
+   "type": "part_lead",
+   "hole": "B16",
+   "part": "LED1",
+   "pin": "cathode",
+   "net": "GND",
+   "note": "部品の足（基板の裏で切る。1.5mm 以下）"
+  },
+  {
+   "id": "P25",
+   "type": "part_lead",
+   "hole": "G15",
+   "part": "SW1",
+   "pin": "a1",
+   "net": "BTN",
+   "note": "部品の足（基板の裏で切る。1.5mm 以下）"
+  },
+  {
+   "id": "P26",
+   "type": "part_lead",
+   "hole": "I15",
+   "part": "SW1",
+   "pin": "a2",
+   "net": "BTN",
+   "note": "部品の足（基板の裏で切る。1.5mm 以下）"
+  },
+  {
+   "id": "P27",
+   "type": "part_lead",
+   "hole": "G18",
+   "part": "SW1",
+   "pin": "b1",
+   "net": "GND",
+   "note": "部品の足（基板の裏で切る。1.5mm 以下）"
+  },
+  {
+   "id": "P28",
+   "type": "part_lead",
+   "hole": "I18",
+   "part": "SW1",
+   "pin": "b2",
+   "net": "GND",
+   "note": "部品の足（基板の裏で切る。1.5mm 以下）"
+  },
+  {
+   "id": "E01",
+   "type": "wire_end",
+   "hole": "C13",
+   "wire": "W01",
+   "net": "CS",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E02",
+   "type": "wire_end",
+   "hole": "Q8",
+   "wire": "W01",
+   "net": "CS",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E03",
+   "type": "wire_end",
+   "hole": "F13",
+   "wire": "W02",
+   "net": "LEDIN",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E04",
+   "type": "wire_end",
+   "hole": "F14",
+   "wire": "W02",
+   "net": "LEDIN",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E05",
+   "type": "wire_end",
+   "hole": "G13",
+   "wire": "W03",
+   "net": "BTN",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E06",
+   "type": "wire_end",
+   "hole": "G15",
+   "wire": "W03",
+   "net": "BTN",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E07",
+   "type": "wire_end",
+   "hole": "D7",
+   "wire": "W04",
+   "net": "3V3",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E08",
+   "type": "wire_end",
+   "hole": "Q4",
+   "wire": "W04",
+   "net": "3V3",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E09",
+   "type": "wire_end",
+   "hole": "G7",
+   "wire": "W05",
+   "net": "SCK",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E10",
+   "type": "wire_end",
+   "hole": "Q9",
+   "wire": "W05",
+   "net": "SCK",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E11",
+   "type": "wire_end",
+   "hole": "C14",
+   "wire": "W06",
+   "net": "LEDA",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E12",
+   "type": "wire_end",
+   "hole": "C16",
+   "wire": "W06",
+   "net": "LEDA",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E13",
+   "type": "wire_end",
+   "hole": "H7",
+   "wire": "W07",
+   "net": "MISO",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E14",
+   "type": "wire_end",
+   "hole": "Q7",
+   "wire": "W07",
+   "net": "MISO",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E15",
+   "type": "wire_end",
+   "hole": "C7",
+   "wire": "W08",
+   "net": "GND",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E16",
+   "type": "wire_end",
+   "hole": "Q6",
+   "wire": "W08",
+   "net": "GND",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E17",
+   "type": "wire_end",
+   "hole": "C7",
+   "wire": "W09",
+   "net": "GND",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E18",
+   "type": "wire_end",
+   "hole": "B16",
+   "wire": "W09",
+   "net": "GND",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E19",
+   "type": "wire_end",
+   "hole": "B16",
+   "wire": "W10",
+   "net": "GND",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  },
+  {
+   "id": "E20",
+   "type": "wire_end",
+   "hole": "G18",
+   "wire": "W10",
+   "net": "GND",
+   "shares_pad_with_part_lead": true,
+   "note": "同じ穴のはんだに、線の端を重ねてはんだ付けする"
+  }
+ ],
+ "counts": {
+  "part_lead_solder_points": 28,
+  "wire_end_solder_points": 20,
+  "total_solder_points": 48,
+  "wires_bare": 4,
+  "wires_insulated": 6,
+  "wire_length_total_mm": 205.6,
+  "crossings": 4
+ },
+ "ascii_front_view": [
+  "    ABCDEFGHIJKLMNOPQRSTUVWX",
+  " 1  ×······················×",
+  " 2  ························",
+  " 3  ························",
+  " 4  ················a·······",
+  " 5  ················a·······",
+  " 6  ················a·······",
+  " 7  ·xxxxxxx········a·······",
+  " 8  ················a·······",
+  " 9  ················a·······",
+  "10  ························",
+  "11  ························",
+  "12  ························",
+  "13  ·xxxxxxx················",
+  "14  ··R··R··················",
+  "15  ······S·S···············",
+  "16  ·LL·····················",
+  "17  ························",
+  "18  ×·····S·S··············×"
+ ],
+ "ascii_legend": "x=XIAO のソケット穴, a=アンプのソケット穴, R=抵抗の足, L=LED の足, S=スイッチの足, ×=取付穴のそばで使えない穴（取付穴そのものは格子の外、基板の各辺から約 2.5mm）",
+ "assembly_order": [
+  {
+   "step": 1,
+   "what": "抵抗 R1 を差して、裏で足をはんだ付け・切る",
+   "solder_points": [
+    "P21",
+    "P22"
+   ]
+  },
+  {
+   "step": 2,
+   "what": "タクトスイッチ SW1",
+   "solder_points": [
+    "P25",
+    "P26",
+    "P27",
+    "P28"
+   ]
+  },
+  {
+   "step": 3,
+   "what": "丸ピンソケット 1×7 ×2（XIAO 用）。XIAO を仮に差して位置を決めてから",
+   "solder_points": [
+    "P01",
+    "P02",
+    "P03",
+    "P04",
+    "P05",
+    "P06",
+    "P07",
+    "P08",
+    "P09",
+    "P10",
+    "P11",
+    "P12",
+    "P13",
+    "P14"
+   ]
+  },
+  {
+   "step": 4,
+   "what": "丸ピンソケット 1×6（アンプ用）",
+   "solder_points": [
+    "P15",
+    "P16",
+    "P17",
+    "P18",
+    "P19",
+    "P20"
+   ]
+  },
+  {
+   "step": 5,
+   "what": "LED1（長い足 = アノード）",
+   "solder_points": [
+    "P23",
+    "P24"
+   ]
+  },
+  {
+   "step": 6,
+   "what": "裸線（スズメッキ線）の配線",
+   "wires": [
+    "W02",
+    "W03",
+    "W06",
+    "W07"
+   ]
+  },
+  {
+   "step": 7,
+   "what": "被覆線の配線。交差の少ない線から先に、交差する側の線をあとに",
+   "wires": [
+    "W01",
+    "W04",
+    "W05",
+    "W08",
+    "W09",
+    "W10"
+   ]
+  },
+  {
+   "step": 8,
+   "what": "テスターで導通・ショートを確認（HARDWARE.md 2.4）"
+  }
+ ],
+ "case_params": {
+  "board": "7050",
+  "xiao_amp_gap_mm": 17.48,
+  "min_xa_mm": 16.0,
+  "xiao_c0": 1,
+  "xiao_r0": 5,
+  "amp_c": 16,
+  "amp_r": 9,
+  "amp_flip": 1,
+  "led_c": 2,
+  "led_r": 2,
+  "led_dc": -1,
+  "led_dr": 0,
+  "sw_c": 6,
+  "sw_r": 0,
+  "sw_horiz": 0,
+  "res_c": 2,
+  "res_r": 4,
+  "res_span": 3
+ },
+ "search": {
+  "cost": 506.9,
+  "weights": {
+   "crossing": 100.0,
+   "wire_end": 5.0,
+   "per_mm": 1.0,
+   "over_other_net_joint": 0.3
+  },
+  "note": "評価 = 100×交差 + 5×線の端 + 線の長さ(mm) + 0.3×他のネットのはんだの上を通る数。小さいほどよい"
+ },
+ "notes": [
+  "5V・D0・D2・D3・D6・D9・D10 と、アンプの 3Vo には何もつながない（ソケットのピンははんだ付けするが、線はつながない）。",
+  "D9 には何もつながない（BOOT ボタンと同じ線）。MISO は D7。",
+  "裸線は、同じネットの穴だけを通す。ほかのネットの穴の上を通る裸線は、ショートする。",
+  "被覆線は交差してよい。ただし裸線の上を通すときは、被覆がやぶれていないことを確かめる。",
+  "passes_near_holes: 被覆線が、ほかのネットの穴のはんだの 1.2mm 以内を通る所。被覆がやぶれていなければ問題ないが、そこだけ線を少し浮かせて通すと安心。",
+  "10kΩ のプルアップは付けない（任意の部品。付けるなら CS のあいだに入れる）。"
+ ]
+}

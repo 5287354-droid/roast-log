@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""1本用（秋月 C タイプ 72x47）の部品配置の全探索。layout_check.py と同じ考え方（2.54mm の格子の上を全部試す）。
+"""1本用（既定は実物の 70x50mm・24x18 穴の基板。BOARD_1CH=akizukiC で前の 72x47 も）の部品配置の全探索。layout_check.py と同じ考え方（2.54mm の格子の上を全部試す）。
 
 手順
   1. XIAO とアンプの置き方（位置、アンプの向き 2 通り）を全部ためして、
@@ -37,8 +37,8 @@ def led_ok(lay, rects, centre):
     if min(cx, BX - cx, cy, BY - cy) < 5.0: return False
     for r in rects:
         if pt_rect_dist(centre, r) < LED_TUBE_R + 0.5: return False
-    for m in MOUNT:
-        if math.dist(centre, mm(m)) < 6.0: return False
+    for m in MOUNT_MM:
+        if math.dist(centre, m) < 6.0: return False
     return True
 
 def btn_ok(rects, centre):
@@ -46,8 +46,8 @@ def btn_ok(rects, centre):
     if min(cx, BX - cx, cy, BY - cy) < 5.4: return False
     for r in rects:
         if pt_rect_dist(centre, r) < BTN_TUBE_R + 0.5: return False
-    for m in MOUNT:
-        if math.dist(centre, mm(m)) < 7.0: return False
+    for m in MOUNT_MM:
+        if math.dist(centre, m) < 7.0: return False
     return True
 
 def d4_pad(lay): return [p for p, o in lay.occ.items() if o[1] == "D4"][0]
@@ -65,7 +65,8 @@ def best_chain(lay, rects, top_r=40, per_r=80):
                 if not (free(lay, ra) and free(lay, rb)): continue
                 if span > 1 and not seg_clear(lay, ra, rb, (ra, rb)): continue
                 for (pin_in, pin_out) in ((ra, rb), (rb, ra)):
-                    est = min(local_cost(w) for w in edge_options(lay, "LEDIN", d4, pin_in))
+                    est = min((local_cost(w) for w in edge_options(lay, "LEDIN", d4, pin_in)), default=INF)
+                    if est >= INF: continue
                     rcand.append((est, pin_in, pin_out, span))
     rcand.sort(key=lambda t: t[0])
     best = None
@@ -83,7 +84,8 @@ def best_chain(lay, rects, top_r=40, per_r=80):
                 cen = ((mm(a)[0] + mm(k)[0]) / 2, (mm(a)[1] + mm(k)[1]) / 2)
                 if not led_ok(l2, rects, cen): continue
                 if span > 1 and seg_dist_pt(mm(rin), mm(rout), cen) < 4.0: continue
-                est = min(local_cost(w) for w in edge_options(l2, "LEDA", rout, a))
+                est = min((local_cost(w) for w in edge_options(l2, "LEDA", rout, a)), default=INF)
+                if est >= INF: continue
                 lc.append((est, a, k, cen))
         lc.sort(key=lambda t: t[0])
         for est, a, k, cen in lc[:per_r]:
@@ -172,6 +174,11 @@ if __name__ == "__main__":
             res = [r for r in pool.map(stage2, [(s[1], s[2], s[3], s[4]) for s in scored[:top_n]]) if r]
         res.sort(key=lambda t: t[0])
         print(f"3. 抵抗+LED+スイッチまで入れた全体（アンプ向き={'逆' if flip else '通常'}）")
+        if res:
+            import statistics
+            cr_ = [s[4][2] for s in res]; ln_ = [s[4][4] for s in res]
+            print(f"   全体配線が成り立つ置き方 {len(res)} 通り: 交差 最小 {min(cr_)} / 中央値 {statistics.median(cr_)} / 最大 {max(cr_)}、"
+                  f"線の長さ 最小 {min(ln_):.0f} / 中央値 {statistics.median(ln_):.0f} / 最大 {max(ln_):.0f} mm")
         for s in res[:6]:
             cost, xp, ap, lay, r = s
             print(f"   cost={cost:.1f} XIAO={xp} アンプ={ap[:2]} 交差={r[2]} 線の端={r[3]} 長さ={r[4]:.1f}mm"

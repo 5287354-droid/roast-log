@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""熱電対1本用の基板（秋月 C タイプ）の配置と配線のモデル。
+"""熱電対1本用の基板（既定は実物の 70x50mm / 24x18 穴 / 片面）の配置と配線のモデル。
 board_1ch_search.py（全探索）と board_1ch_make.py（JSON を作る）が使う。
 
 座標: 穴は (c, r)。c = 左から（0 始まり）、r = 手前（前）から（0 始まり）。
@@ -10,26 +10,50 @@ board_1ch_search.py（全探索）と board_1ch_make.py（JSON を作る）が�
 import itertools, math
 
 P = 2.54
-COLS, ROWS = 28, 18            # [要実測] 秋月 C タイプの穴の数
-BX, BY = 72.0, 47.0            # [要実測] 基板の外形
-GX0 = (BX - (COLS - 1) * P) / 2
-GY0 = (BY - (ROWS - 1) * P) / 2
-MOUNT = [(1, 1), (COLS - 2, 1), (1, ROWS - 2), (COLS - 2, ROWS - 2)]   # [要実測] 取付穴（格子の穴の位置と仮定）
+import os
+# 基板の種類。環境変数 BOARD_1CH か configure() で切り替える（既定は 7050）
+#   7050     : ユーザーが買った実物。70 x 50mm、穴 24 x 18、片面、取付穴は各辺から約 2.5mm  [要実測]
+#   akizukiC : 前に仮定した秋月 C タイプ。72 x 47mm、穴 28 x 18、取付穴は格子の穴（B2 など）の位置
+BOARDS = {
+    "7050": dict(BX=70.0, BY=50.0, COLS=24, ROWS=18, mount="edge", mount_off=2.5, mount_d=3.0),
+    "akizukiC": dict(BX=72.0, BY=47.0, COLS=28, ROWS=18, mount="grid", mount_d=3.2),
+}
+BOARD_KEY = None
+
+def configure(key):
+    """基板の種類を切り替える。このモジュールの大域値（COLS, ROWS, BX, BY, GX0, GY0, MOUNT_MM）を書き換える"""
+    global BOARD_KEY, COLS, ROWS, BX, BY, GX0, GY0, MOUNT_MM, MOUNT_D
+    b = BOARDS[key]
+    BOARD_KEY = key
+    COLS, ROWS, BX, BY = b["COLS"], b["ROWS"], b["BX"], b["BY"]
+    # 穴の格子は基板の中央にあると仮定（[要実測] 最初の穴までの距離）
+    GX0 = (BX - (COLS - 1) * P) / 2
+    GY0 = (BY - (ROWS - 1) * P) / 2
+    MOUNT_D = b["mount_d"]
+    if b["mount"] == "edge":
+        o = b["mount_off"]
+        MOUNT_MM = [(o, o), (BX - o, o), (o, BY - o), (BX - o, BY - o)]     # 左前, 右前, 左奥, 右奥（x, y は基板の左前の角から。y は手前から）
+    else:
+        MOUNT_MM = [(GX0 + c * P, GY0 + r * P) for c, r in ((1, 1), (COLS - 2, 1), (1, ROWS - 2), (COLS - 2, ROWS - 2))]
+
+configure(os.environ.get("BOARD_1CH", "7050"))
 
 # 部品の寸法（scad と同じ。[要実測]）
 XIAO_L, XIAO_W = 21.0, 17.8
 AMP_L, AMP_W, AMP_PIN_OFF = 25.0, 20.0, 2.5
 XIAO_ROWGAP = 6                # 左右のピン列の間（穴 6 ピッチ = 15.24mm）
-MIN_XA = 16.0                  # XIAO とアンプの最低距離（mm。基板の温度で測るため）
+MIN_XA = float(os.environ.get("MIN_XA", 16.0))   # XIAO とアンプの最低距離（mm。基板の温度で測るため。16 が望ましい、入らなければ 12 まで）
+MIN_INS = float(os.environ.get("MIN_INS", 12.0))                # 被覆線の最短の長さ（mm。両端を 5mm ずつむくため）
 EDGE = 1.0                     # 部品と基板のふちのすき間
 MOUNT_KEEP = 4.0               # 取付穴の中心から部品の本体まで
-PAD_KEEP = 3.7                 # 取付穴の中心からこの距離以内の穴は使わない（柱がある）
+PAD_KEEP = 3.7                 # 取付穴の中心からこの距離以内の穴は使わない（直径 7mm の柱が基板の裏に当たる）
 LED_TUBE_R = 4.5               # ふたの導光筒の半径
 BTN_TUBE_R = 4.9               # ふたのボタン筒の半径
 
 def X(c): return GX0 + c * P
 def Y(r): return GY0 + r * P
 def mm(p): return (X(p[0]), Y(p[1]))
+def mount_pt(m): return m
 def col_letter(c): return chr(ord('A') + c) if c < 26 else 'A' + chr(ord('A') + c - 26)   # A..Z, AA, AB
 def name(p): return col_letter(p[0]) + str(ROWS - p[1])
 def parse(n):
@@ -98,14 +122,14 @@ def pt_rect_dist(p, r):
 
 def rect_ok(r, x_left_edge=EDGE):
     if r[0] < x_left_edge or r[2] > BX - EDGE or r[1] < EDGE or r[3] > BY - EDGE: return False
-    for m in MOUNT:
-        if pt_rect_dist(mm(m), r) < MOUNT_KEEP: return False
+    for m in MOUNT_MM:
+        if pt_rect_dist(m, r) < MOUNT_KEEP: return False
     return True
 
 def pad_blocked(p):
     if not (0 <= p[0] < COLS and 0 <= p[1] < ROWS): return True
-    for m in MOUNT:
-        if math.hypot(X(p[0]) - X(m[0]), Y(p[1]) - Y(m[1])) < PAD_KEEP: return True
+    for m in MOUNT_MM:
+        if math.hypot(X(p[0]) - m[0], Y(p[1]) - m[1]) < PAD_KEEP: return True
     return False
 
 def core_candidates():
@@ -175,7 +199,9 @@ def edge_options(lay, net, a, b):
             if o[2] == net: cov.append(p)
             else: ok = False; break
         if ok: opts.append(("bare", a, b, tuple(cov)))
-    opts.append(("ins", a, b, ()))
+    # 被覆線は両端を 5mm ずつむくので、短すぎる線（MIN_INS 未満）は作れない。短いつなぎは、同じ行・列の裸線だけにする
+    if math.dist(mm(a), mm(b)) >= MIN_INS:
+        opts.append(("ins", a, b, ()))
     return opts
 
 def wire_len(w):

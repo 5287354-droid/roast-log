@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""board_1ch.json（と board_1ch_amp_reversed.json）の配線を、docs/HARDWARE.md 2.1 の配線表（アンプ #1 の列）と突き合わせる。
+"""board_1ch_7050.json（実物の基板）と、前の board_1ch.json / board_1ch_amp_reversed.json（秋月 C タイプの仮定）の配線を、docs/HARDWARE.md 2.1 の配線表（アンプ #1 の列）と突き合わせる。
 さらに、JSON の中身が物理的に成り立つか（裸線がほかのネットに触れない、穴が重ならない…）と、
 roastlogger_case_1ch.scad の先頭の値が JSON の配置と同じかを確かめる。
 使い方: python3 board_1ch_check.py   （問題があれば NG を出して終了コード 1）"""
@@ -7,7 +7,8 @@ import json, os, re, sys, itertools
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-from board_1ch_lib import parse, name, mm, COLS, ROWS, MOUNT, pad_blocked, XIAO_BACK, XIAO_FRONT, AMP_PINS, seg_inter
+import board_1ch_lib as L
+from board_1ch_lib import parse, name, mm, pad_blocked, XIAO_BACK, XIAO_FRONT, AMP_PINS, seg_inter
 errors = []
 def ng(m): errors.append(m); print("NG:", m)
 
@@ -42,6 +43,10 @@ exp_groups.append({"XIAO.D5", "SW1.a1", "SW1.a2"})  # D5 → スイッチ
 def check(fn):
     d = json.load(open(os.path.join(HERE, fn), encoding="utf-8"))
     tag = fn
+    key = d["board"].get("key", "akizukiC")
+    L.configure(key)          # 基板の種類（穴の数・取付穴）をこの JSON に合わせる
+    COLS, ROWS = L.COLS, L.ROWS
+    if (d["board"]["cols"], d["board"]["rows"], d["board"]["size_mm"]) != (COLS, ROWS, [L.BX, L.BY]): ng(f"{tag}: 基板の穴数・外形が lib の {key} と違う")
     holes = {}; pinhole = {}
     nets = {}
     for p in d["parts"]:
@@ -117,22 +122,36 @@ def check(fn):
     parts_pins = sum(len(p["pins"]) for p in d["parts"])
     if cnt["part_lead_solder_points"] != parts_pins: ng(f"{tag}: 部品の足の数 {parts_pins} と点数 {cnt['part_lead_solder_points']} が違う")
     if cnt["total_solder_points"] != len(d["solder_points"]): ng(f"{tag}: はんだ付けの点数が合わない")
-    # scad の値と同じか
+    # 取付穴: JSON の位置が lib と同じ
+    if "blocked_holes" in d["board"]:
+        mh = [(m["x_mm"], round(L.BY - m["y_from_top_mm"], 2)) for m in d["board"]["mount_holes"]]
+        if sorted(mh) != sorted((round(x, 2), round(y, 2)) for x, y in L.MOUNT_MM): ng(f"{tag}: 取付穴の位置が lib と違う")
+        if sorted(d["board"]["blocked_holes"]) != sorted(name((c, r)) for c in range(COLS) for r in range(ROWS) if pad_blocked((c, r))):
+            ng(f"{tag}: blocked_holes が lib と違う")
+    # scad の値と同じか（配置の並びは layout_<board> に書いてある。向きが実物に合う「逆」の配置だけが scad に入る）
     scad = open(os.path.join(HERE, "roastlogger_case_1ch.scad"), encoding="utf-8").read()
-    def sv(n):
-        m = re.search(r"^%s\s*=\s*([-0-9.]+)\s*;" % n, scad, re.M); return float(m.group(1)) if m else None
     cp = d["case_params"]
-    if not d["amp_reversed_variant"]:        # scad は通常向きの配置に合わせてある（反転版は別の配置。ケースの形は同じで列・段だけ変える）
-        for k in ("xiao_c0", "xiao_r0", "amp_c", "amp_r", "led_c", "led_r", "led_dc", "led_dr", "sw_c", "sw_r", "sw_horiz"):
-            if sv(k) != cp[k]: ng(f"{tag}: scad の {k}={sv(k)} が JSON の {cp[k]} と違う")
-        rr = next(p for p in d["parts"] if p["id"] == "R1")
-        rc = sorted(parse(q["hole"]) for q in rr["pins"])
-        if (sv("res_c"), sv("res_r"), sv("res_span")) != (rc[0][0], rc[0][1], rc[1][0] - rc[0][0]) or rc[0][1] != rc[1][1]:
-            ng(f"{tag}: scad の抵抗の位置 {(sv('res_c'), sv('res_r'), sv('res_span'))} が JSON {rc} と違う")
+    if d["amp_reversed_variant"]:
+        m = re.search(r"^layout_%s\s*=\s*\[([^\]]*)\]\s*;" % key, scad, re.M)
+        vec = [int(v) for v in m.group(1).split(",")] if m else None
+        names = ["xiao_c0", "xiao_r0", "amp_c", "amp_r", "led_c", "led_r", "led_dc", "led_dr", "sw_c", "sw_r", "sw_horiz", "res_c", "res_r", "res_span"]
+        if vec is None: ng(f"{tag}: scad に layout_{key} がない")
+        else:
+            for k, v in zip(names, vec):
+                if cp[k] != v: ng(f"{tag}: scad の layout_{key} の {k}={v} が JSON の {cp[k]} と違う")
+        def sv(n):
+            mm_ = re.search(r"^%s\s*=\s*(.*?);" % n, scad, re.M | re.S); return re.sub(r"\s+", " ", mm_.group(1)) if mm_ else ""
+        if key == "7050":
+            if not sv("board_x").startswith('board == "7050" ? 70 '): ng(f"{tag}: scad の board_x が 70 でない")
+            if not sv("board_y").startswith('board == "7050" ? 50 '): ng(f"{tag}: scad の board_y が 50 でない")
+            if not sv("grid_cols").startswith('board == "7050" ? 24 '): ng(f"{tag}: scad の grid_cols が 24 でない")
+            if not sv("mount_off").startswith('board == "7050" ? [2.5, 2.5]'): ng(f"{tag}: scad の mount_off が [2.5, 2.5] でない")
+            if re.search(r'^board\s*=\s*"7050"\s*;', scad, re.M) is None: ng(f"{tag}: scad の既定の board が 7050 でない")
+        if sv("amp_flip") != "1": ng(f"{tag}: scad の amp_flip が 1 でない")
     print(f"{tag}: 配線 {len(d['wires'])} 本（裸線 {len(bare)}、被覆線 {len(d['wires'])-len(bare)}）、はんだ付け {cnt['total_solder_points']} 点、"
           f"交差 {cnt['crossings']}、期待するつながり {len(exp_groups)} 組すべて一致" if not errors else f"{tag}: NG あり")
 
-for fn in ("board_1ch.json", "board_1ch_amp_reversed.json"):
+for fn in ("board_1ch_7050.json", "board_1ch.json", "board_1ch_amp_reversed.json"):
     check(fn)
 print("OK（HARDWARE.md の配線と一致）" if not errors else f"NG {len(errors)} 件")
 sys.exit(1 if errors else 0)
